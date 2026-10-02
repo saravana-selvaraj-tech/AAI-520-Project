@@ -1,0 +1,121 @@
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.service | Evaluation started | metrics=5
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.service | Evaluation completed | metrics=5
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=accuracy | model=test-model
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=accuracy | score=0.9100 | passed=True
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=accuracy | model=test-model
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=accuracy | score=0.9000 | passed=True
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=groundedness | model=test-model
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=groundedness | score=0.5500 | passed=False
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=relevance | model=test-model
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=relevance | score=0.9000 | passed=True
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=groundedness | model=test-model
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=groundedness | score=0.9000 | passed=True
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=accuracy | model=test-model
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=accuracy | score=0.9000 | passed=True
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=temporal_validity | model=test-model
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=temporal_validity | score=0.9000 | passed=True
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=clarity | model=test-model
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=clarity | score=0.9000 | passed=True
+2026-09-30 00:34:01+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=groundedness | model=openai/gpt-oss-120b
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=groundedness | score=1.0000 | passed=True
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.service | Memory persistence started | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence started | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence completed | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.service | Memory persistence completed | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.service | Memory persistence started | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence started | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence completed | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.service | Memory persistence completed | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence started | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence completed | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.service | Memory persistence started | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence started | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence completed | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.service | Memory persistence completed | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.service | Memory retrieval started | max_results=5
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory retrieval started | max_results=5
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory retrieval completed | matches=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.service | Memory retrieval completed | source=L1+L2 | matches=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence started | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence completed | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence started | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence completed | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence started | memory_id=aapl-memory
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence completed | memory_id=aapl-memory
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence started | memory_id=msft-memory
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence completed | memory_id=msft-memory
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory retrieval started | max_results=5
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory retrieval completed | matches=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence started | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence completed | memory_id=memory-1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory retrieval started | max_results=5
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory retrieval completed | matches=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.service | Memory persistence started | memory_id=persistent-memory
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence started | memory_id=persistent-memory
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory persistence completed | memory_id=persistent-memory
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.service | Memory persistence completed | memory_id=persistent-memory
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.service | Memory retrieval started | max_results=5
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory retrieval started | max_results=5
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.repository | Memory retrieval completed | matches=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.memory.service | Memory retrieval completed | source=L1+L2 | matches=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Workflow started | run_id=695ff9d85f71
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Evaluation started | run_id=695ff9d85f71 | iteration=0
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Evaluation completed | run_id=695ff9d85f71 | iteration=0 | passed=True
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Workflow completed | run_id=695ff9d85f71 | iterations=0 | passed=True
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Workflow started | run_id=32554b6886be
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Evaluation started | run_id=32554b6886be | iteration=0
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Evaluation completed | run_id=32554b6886be | iteration=0 | passed=False
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Reflection started | run_id=32554b6886be | iteration=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.reflection.legacy_service | Reflection started | metrics=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.reflection.legacy_service | Reflection completed | findings=1 | optimize=True
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Reflection completed | run_id=32554b6886be | iteration=1 | findings=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Optimization started | run_id=32554b6886be | iteration=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Optimization completed | run_id=32554b6886be | iteration=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Evaluation started | run_id=32554b6886be | iteration=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Evaluation completed | run_id=32554b6886be | iteration=1 | passed=True
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Workflow completed | run_id=32554b6886be | iterations=1 | passed=True
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Workflow started | run_id=b17a7b5ae50a
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Evaluation started | run_id=b17a7b5ae50a | iteration=0
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Evaluation completed | run_id=b17a7b5ae50a | iteration=0 | passed=False
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Reflection started | run_id=b17a7b5ae50a | iteration=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.reflection.legacy_service | Reflection started | metrics=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.reflection.legacy_service | Reflection completed | findings=1 | optimize=True
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Reflection completed | run_id=b17a7b5ae50a | iteration=1 | findings=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Optimization started | run_id=b17a7b5ae50a | iteration=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Optimization completed | run_id=b17a7b5ae50a | iteration=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Evaluation started | run_id=b17a7b5ae50a | iteration=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Evaluation completed | run_id=b17a7b5ae50a | iteration=1 | passed=False
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Reflection started | run_id=b17a7b5ae50a | iteration=2
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.reflection.legacy_service | Reflection started | metrics=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.reflection.legacy_service | Reflection completed | findings=1 | optimize=True
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Reflection completed | run_id=b17a7b5ae50a | iteration=2 | findings=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Optimization started | run_id=b17a7b5ae50a | iteration=2
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Optimization completed | run_id=b17a7b5ae50a | iteration=2
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Evaluation started | run_id=b17a7b5ae50a | iteration=2
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Evaluation completed | run_id=b17a7b5ae50a | iteration=2 | passed=False
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.optimization.controller | Workflow completed | run_id=b17a7b5ae50a | iterations=2 | passed=False
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.reflection.legacy_service | Reflection started | metrics=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.reflection.legacy_service | Reflection completed | findings=1 | optimize=True
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.reflection.legacy_service | Reflection started | metrics=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.reflection.legacy_service | Reflection completed | findings=0 | optimize=False
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.reflection.legacy_service | Reflection started | metrics=1
+2026-09-30 00:34:02+0530 | INFO | evaluator_optimizer.reflection.legacy_service | Reflection completed | findings=1 | optimize=True
+2026-09-30 00:37:32+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=groundedness | model=openai/gpt-oss-120b
+2026-09-30 00:37:33+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=groundedness | score=1.0000 | passed=True
+2026-09-30 22:23:38+0530 | INFO | evaluator_optimizer.orchestration.memory_aware | Memory-aware workflow started | symbol=AAPL
+2026-09-30 22:23:38+0530 | INFO | evaluator_optimizer.orchestration.memory_aware | Initial response generated by Cohort 2 router | symbol=AAPL
+2026-09-30 22:23:38+0530 | INFO | evaluator_optimizer.orchestration.memory_aware | Memory-aware workflow completed | retrieved=0 | applied=0
+2026-09-30 22:23:38+0530 | INFO | evaluator_optimizer.orchestration.memory_aware | Memory-aware workflow started | symbol=NVDA
+2026-09-30 22:23:38+0530 | INFO | evaluator_optimizer.orchestration.memory_aware | Initial response generated by Cohort 2 router | symbol=NVDA
+2026-09-30 22:23:38+0530 | INFO | evaluator_optimizer.orchestration.memory_aware | Memory-aware workflow completed | retrieved=0 | applied=0
+2026-09-30 22:23:38+0530 | INFO | evaluator_optimizer.orchestration.memory_aware | Memory-aware workflow started | symbol=AMZN
+2026-09-30 22:23:38+0530 | INFO | evaluator_optimizer.orchestration.memory_aware | Initial response generated by Cohort 2 router | symbol=AMZN
+2026-09-30 22:23:38+0530 | INFO | evaluator_optimizer.orchestration.memory_aware | Memory-aware workflow completed | retrieved=0 | applied=0
+2026-09-30 22:27:18+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=groundedness | model=openai/gpt-oss-120b
+2026-09-30 22:27:20+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=groundedness | score=1.0000 | passed=True
+2026-10-01 11:35:31+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=groundedness | model=openai/gpt-oss-120b
+2026-10-01 11:35:32+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=groundedness | score=1.0000 | passed=True
+2026-10-01 11:40:48+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=groundedness | model=meta-llama/llama-prompt-guard-2-86m
+2026-10-01 11:41:41+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=groundedness | model=meta-llama/llama-prompt-guard-2-22m
+2026-10-01 11:41:52+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation started | metric=groundedness | model=openai/gpt-oss-120b
+2026-10-01 11:41:53+0530 | INFO | evaluator_optimizer.evaluation.evaluator | Evaluation completed | metric=groundedness | score=1.0000 | passed=True
