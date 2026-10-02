@@ -13,10 +13,6 @@ The project demonstrates key agentic AI concepts including:
 * **Memory**
 * **Evidence-based Report Generation**
 
-> **Academic Project:** AAI-520
-> **Duration:** 3 weeks
-> **Team Structure:** 3 cohorts
-
 ---
 
 ## 1. Project Objective
@@ -25,9 +21,10 @@ Traditional financial research often requires analysts to manually gather inform
 
 This project explores how an **agentic AI system** can automate and orchestrate these activities.
 
-The proposed system accepts a research request such as:
+The proposed system accepts a research request such as the company or its stock symbol. Generate the concerned companies financial report. 
+And then generates questions related to concerned companies financial data like the one given belowL
 
-> "Analyze Microsoft (MSFT) and provide an investment research report based on recent financial performance, market trends, and relevant news."
+> "What is the latest earnings reported by Microsoft"
 
 The agent then:
 
@@ -37,9 +34,10 @@ The agent then:
 4. Retrieves financial, market, news, and regulatory information.
 5. Processes and summarizes retrieved information.
 6. Generates an evidence-based research report.
-7. Evaluates the quality and completeness of the report.
-8. Iteratively improves the response when required.
-9. Stores useful research context for subsequent tasks.
+7. Take follow questions question from the user and generates answer from collected data
+8. Evaluates the quality and completeness of the answer.
+9. Iteratively improves the response when required.
+10. Stores useful research context for subsequent tasks.
 
 ---
 
@@ -55,7 +53,7 @@ The project is designed to demonstrate practical implementation of:
 | Prompt Chaining      | Sequential information-processing pipeline   |
 | RAG / Retrieval      | Retrieving relevant financial/news evidence  |
 | Tool Calling         | Financial and information retrieval tools    |
-| Evaluation           | Checking generated reports                   |
+| Evaluation           | Checking generated reports/response                  |
 | Reflection           | Improving weak or incomplete responses       |
 | Memory               | Retaining useful research context            |
 | Visualization        | Financial and research-related charts        |
