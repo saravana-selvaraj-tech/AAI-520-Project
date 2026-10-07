@@ -581,20 +581,20 @@ Processing     Retrieval
 
 # 15. Repository-to-Architecture Mapping
 
-| Repository Component | Architectural Responsibility      |
-| -------------------- | --------------------------------- |
-| `src/agent/`         | Agent orchestration and state     |
-| `src/planning/`      | Task decomposition                |
-| `src/routing/`       | Dynamic routing                   |
-| `src/tools/`         | External tool interfaces          |
-| `src/retrieval/`     | Retrieval and evidence            |
-| `src/chains/`        | Prompt chaining                   |
-| `src/evaluation/`    | Evaluation and optimization       |
-| `src/memory/`        | Persistent/reusable context       |
-| `src/visualization/` | Financial/research visualization  |
-| `tests/`             | Unit and integration testing      |
-| `notebooks/`         | Experiments and demonstrations    |
-| `reports/`           | Generated/sample research reports |
+| Repository Component                     | Architectural Responsibility      |
+| ---------------------------------------- | --------------------------------- |
+| `src/agent/`                             | Agent orchestration and state     |
+| `src/planning/`                          | Task decomposition                |
+| `src/routing/`                           | Dynamic routing                   |
+| `src/tools/`                             | External tool interfaces          |
+| `src/retrieval/`                         | Retrieval and evidence            |
+| `src/chains/`                            | Prompt chaining                   |
+| `src/evaluation_optimizer/`              | Evaluation and optimization       |
+| `src/evaluation_optimizer/memory`        | Persistent/reusable context       |
+| `src/evaluation_optimizer/reflection`    | Reflect and improve reponse       |
+| `tests/`                                 | Unit and integration testing      |
+| `notebooks/`                             | Experiments and demonstrations    |
+| `reports/`                               | Generated/sample research reports |
 
 ---
 
