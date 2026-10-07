@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from evaluator_optimizer.memory.cache import MemoryCache
 from evaluator_optimizer.memory.models import MemoryItem
-from evaluator_optimizer.logging_config import get_logger
+from logging_config import get_logger
 from evaluator_optimizer.memory.repository import (
     MemoryQuery,
     MemoryRepository,

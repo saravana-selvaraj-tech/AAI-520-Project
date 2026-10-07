@@ -11,7 +11,7 @@ change and why.
 from __future__ import annotations
 
 from evaluator_optimizer.evaluation.models import EvaluationResult
-from evaluator_optimizer.logging_config import get_logger
+from logging_config import get_logger
 from evaluator_optimizer.evaluation.severity import IssueSeverity
 from evaluator_optimizer.reflection.models import (
     ReflectionFinding,

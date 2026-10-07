@@ -2,7 +2,7 @@
 
 import logging
 
-from evaluator_optimizer.config import (
+from config import (
     DEFAULT_MAX_OPTIMIZATION_ITERATIONS,
     DEFAULT_MEMORY_CACHE_SIZE,
     DEFAULT_MEMORY_MAX_AGE_DAYS,
@@ -11,7 +11,7 @@ from evaluator_optimizer.config import (
     LOG_FILE,
     METRIC_PASS_THRESHOLDS,
 )
-from evaluator_optimizer.logging_config import configure_logging, get_logger
+from logging_config import configure_logging, get_logger
 
 
 def test_core_runtime_constants_are_centralized() -> None:

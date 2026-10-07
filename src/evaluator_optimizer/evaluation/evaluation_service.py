@@ -23,7 +23,7 @@ from evaluator_optimizer.evaluation.temporal_validity import (
 )
 
 
-from evaluator_optimizer.logging_config import get_logger
+from logging_config import get_logger
 
 
 logger = get_logger("evaluation.service")

@@ -7,8 +7,8 @@ from evaluator_optimizer.evaluation.metrics import EvaluationMetric
 
 
 @pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY"),
-    reason="OPENAI_API_KEY is not configured",
+    not os.getenv("GROK_API_KEY"),
+    reason="GROK_API_KEY is not configured",
 )
 def test_real_evaluator_llm() -> None:
     from groq import Groq
