@@ -19,11 +19,11 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from evaluator_optimizer.config import (
+from config import (
     DEFAULT_MEMORY_MAX_RESULTS,
     DEFAULT_MEMORY_STORE_PATH,
 )
-from evaluator_optimizer.logging_config import get_logger
+from logging_config import get_logger
 from evaluator_optimizer.memory.models import MemoryItem
 from evaluator_optimizer.memory.serializer import (
     MemorySerializer,

@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
-from evaluator_optimizer.config import DEFAULT_MEMORY_CACHE_SIZE
-from evaluator_optimizer.logging_config import get_logger
+from config import DEFAULT_MEMORY_CACHE_SIZE
+from logging_config import get_logger
 from evaluator_optimizer.memory.models import MemoryItem
 
 

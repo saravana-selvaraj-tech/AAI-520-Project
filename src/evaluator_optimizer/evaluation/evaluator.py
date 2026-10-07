@@ -46,7 +46,7 @@ try:
 except ImportError:  # pragma: no cover - runtime dependency
     OpenAI = None
 
-from evaluator_optimizer.config import (
+from config import (
     DEFAULT_EVALUATOR_MODEL,
     DEFAULT_PASS_THRESHOLD,
     MAX_SCORE,
@@ -55,7 +55,7 @@ from evaluator_optimizer.config import (
 from evaluator_optimizer.evaluation.metrics import EvaluationMetric
 from evaluator_optimizer.evaluation.models import EvaluationResult
 from evaluator_optimizer.evaluation.rubrics import EVALUATION_RUBRICS
-from evaluator_optimizer.logging_config import get_logger
+from logging_config import get_logger
 
 logger = get_logger("evaluation.evaluator")
 

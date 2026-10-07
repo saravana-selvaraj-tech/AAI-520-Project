@@ -67,7 +67,7 @@ LangGraph and any specific LLM provider.
 
 ## Centralized configuration and logging
 
-Runtime-tunable constants are maintained in `src/evaluator_optimizer/config.py`.
+Runtime-tunable constants are maintained in `src/config.py`.
 This includes evaluator defaults and thresholds, optimization iteration limits,
 memory defaults, memory storage location, and logging settings. Environment
 variables can override the evaluator model, log level, and log directory/file.

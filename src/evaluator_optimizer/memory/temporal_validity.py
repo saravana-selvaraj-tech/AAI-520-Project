@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from evaluator_optimizer.config import DEFAULT_MEMORY_MAX_AGE_DAYS
+from config import DEFAULT_MEMORY_MAX_AGE_DAYS
 
 
 @dataclass(frozen=True)

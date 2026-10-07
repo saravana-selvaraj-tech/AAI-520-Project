@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 
-from evaluator_optimizer.config import DEFAULT_MAX_OPTIMIZATION_ITERATIONS
+from config import DEFAULT_MAX_OPTIMIZATION_ITERATIONS
 from evaluator_optimizer.evaluation.evaluation_service import (
     EvaluationService,
 )
@@ -29,7 +29,7 @@ from evaluator_optimizer.reflection.models import ReflectionResult
 from evaluator_optimizer.reflection.reflection_service import (
     ReflectionService,
 )
-from evaluator_optimizer.logging_config import get_logger
+from logging_config import get_logger
 
 
 logger = get_logger("optimization.controller")

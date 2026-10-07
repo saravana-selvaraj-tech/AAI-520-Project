@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from evaluator_optimizer.config import DEFAULT_MEMORY_MAX_RESULTS
-from evaluator_optimizer.logging_config import get_logger
+from config import DEFAULT_MEMORY_MAX_RESULTS
+from logging_config import get_logger
 from evaluator_optimizer.memory.context import MemoryContext
 from evaluator_optimizer.memory.memory_builder import MemoryBuilder
 from evaluator_optimizer.memory.memory_service import MemoryService

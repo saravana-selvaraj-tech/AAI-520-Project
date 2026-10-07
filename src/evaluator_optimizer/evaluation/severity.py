@@ -10,7 +10,7 @@ by reflection and optimization components in later weeks.
 
 from enum import Enum
 
-from evaluator_optimizer.config import (
+from config import (
     MAX_SCORE,
     MIN_SCORE,
     SEVERITY_HIGH_THRESHOLD,

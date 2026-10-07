@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from evaluator_optimizer.config import (
+from config import (
     DEFAULT_ENCODING,
     LOG_DATE_FORMAT,
     LOG_DIRECTORY,
