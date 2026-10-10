@@ -7,6 +7,12 @@ name = "aai520-evaluator_optimizer"
 version = "0.1.0"
 description = "AAI-520 Evaluator-Optimizer evaluation, optimization, and memory layer"
 requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.0.0",
+    "groq>=0.1.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -15,13 +21,6 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 88
 target-version = "py311"
-
-dependencies = [
-    "openai>=1.0.0",
-    "groq>=0.1.0",
-    "pydantic>=2.0.0",
-    "python-dotenv>=1.0.0",
-]
 
 [project.optional-dependencies]
 dev = [
