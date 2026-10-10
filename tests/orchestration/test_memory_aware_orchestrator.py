@@ -3,15 +3,26 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from evaluator_optimizer.orchestration.memory_aware_orchestrator import (
     MemoryAwareResearchService,
 )
 
 
-def _memory(memory_id: str, gaps: list[str] | None = None):
+def _memory(
+    memory_id: str,
+    gaps: list[str] | None = None,
+    *,
+    research_summary: str = "Prior research summary",
+    evidence: list[str] | None = None,
+):
+    """Build a lightweight memory matching fields consumed by orchestration."""
     return SimpleNamespace(
         memory_id=memory_id,
         identified_gaps=gaps or [],
+        research_summary=research_summary,
+        evidence=evidence or [],
     )
 
 
@@ -69,6 +80,7 @@ def test_run_gets_initial_response_from_cohort_2_router():
         context="RAG research context",
     )
 
+    # With no retrieved memory, the supplied context is preserved unchanged.
     router.route.assert_called_once_with(
         query="Assess the company's recent earnings.",
         context="RAG research context",
@@ -85,22 +97,23 @@ def test_run_no_longer_accepts_external_answer():
     service, router, *_ = _service()
     router.route.return_value = "Router-generated response"
 
-    try:
+    with pytest.raises(TypeError):
         service.run(
             exchange_symbol="MSFT",
             query="What is the current market trend?",
             answer="Externally supplied response",
             context="Market RAG context",
         )
-    except TypeError:
-        return
-
-    raise AssertionError("run() must reject an externally supplied answer")
 
 
 def test_run_retrieves_memory_before_router_and_persists_final_response():
     """Memory retrieval, generation, optimization, and persistence are ordered."""
-    memory = _memory("mem-001", ["Needs more valuation evidence"])
+    memory = _memory(
+        "mem-001",
+        ["Needs more valuation evidence"],
+        research_summary="Prior valuation analysis",
+        evidence=["Prior P/E ratio was 25x"],
+    )
     (
         service,
         router,
@@ -144,6 +157,16 @@ def test_run_retrieves_memory_before_router_and_persists_final_response():
         == "Optimized response"
     )
 
+    # Retrieved memory is now passed into both generation and optimization.
+    router_context = router.route.call_args.kwargs["context"]
+    optimizer_context = optimization_controller.run.call_args.kwargs["context"]
+    for enriched_context in (router_context, optimizer_context):
+        assert "Financial RAG context" in enriched_context
+        assert "Prior research memory (verify against current evidence)" in enriched_context
+        assert "Prior valuation analysis" in enriched_context
+        assert "Prior P/E ratio was 25x" in enriched_context
+        assert "Needs more valuation evidence" in enriched_context
+
 
 def test_run_records_retrieved_and_applied_memory_ids():
     """The trace retains memory traceability."""
@@ -158,8 +181,42 @@ def test_run_records_retrieved_and_applied_memory_ids():
     )
 
     assert memory_context.memories == [memory]
+    # The router receives the memory-enriched context, not only the caller's text.
+    routed_context = router.route.call_args.kwargs["context"]
+    assert "Revenue context" in routed_context
+    assert "Prior research memory (verify against current evidence)" in routed_context
+    assert "Prior research summary" in routed_context
     trace.record_memory_retrieved.assert_called_once_with(["mem-123"])
     trace.record_memory_applied.assert_called_once_with(["mem-123"])
+
+
+
+def test_memory_context_is_added_to_router_and_optimizer_contexts():
+    """Historical summary, evidence, and gaps are supplied to both stages."""
+    memory = _memory(
+        "mem-context",
+        ["Confirm latest quarterly figures"],
+        research_summary="Revenue grew 8% in FY2025.",
+        evidence=["FY2025 annual report"],
+    )
+    service, router, _, _, optimization_controller = _service(memories=[memory])
+    router.route.return_value = "Initial answer"
+
+    service.run(
+        exchange_symbol="AAPL",
+        query="Summarize revenue growth.",
+        context="Current retrieval returned limited details.",
+        topics=["revenue"],
+    )
+
+    router_context = router.route.call_args.kwargs["context"]
+    optimizer_context = optimization_controller.run.call_args.kwargs["context"]
+    assert router_context == optimizer_context
+    assert "Current retrieval returned limited details." in router_context
+    assert "Revenue grew 8% in FY2025." in router_context
+    assert "FY2025 annual report" in router_context
+    assert "Confirm latest quarterly figures" in router_context
+    assert "verify against current evidence" in router_context
 
 
 def test_retrieve_memory_builds_query_using_requested_topics():

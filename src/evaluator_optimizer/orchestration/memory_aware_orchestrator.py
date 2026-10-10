@@ -77,9 +77,17 @@ class MemoryAwareResearchService:
             topics=topics or [],
         )
 
+        # Make retrieved memory available to both Cohort 2 generation and
+        # Cohort 3 evaluation/optimization. The evaluator must judge against
+        # the same evidence that was available to the generator and optimizer.
+        enriched_context = self._enrich_context_with_memory(
+            context=context,
+            memory_context=memory_context,
+        )
+
         initial_response = self._router_service.route(
             query=query,
-            context=context,
+            context=enriched_context,
         )
 
         logger.info(
@@ -90,7 +98,7 @@ class MemoryAwareResearchService:
         trace = self._optimization_controller.run(
             query=query,
             answer=initial_response,
-            context=context,
+            context=enriched_context,
         )
 
         trace.record_memory_retrieved(
@@ -124,6 +132,41 @@ class MemoryAwareResearchService:
         )
 
         return trace, memory_context
+
+    @staticmethod
+    def _enrich_context_with_memory(
+        context: str,
+        memory_context: MemoryContext,
+    ) -> str:
+        """Append retrieved summaries and known gaps to the runtime context.
+
+        Memory is presented as prior research, not as independently verified
+        current evidence. The evaluation and optimization workflow can then
+        reuse relevant details while retaining the supplied current context.
+        """
+        sections = [context.strip()] if context.strip() else []
+
+        for memory in memory_context.memories:
+            if memory.research_summary.strip():
+                sections.append(
+                    "Prior research memory (verify against current evidence):\n"
+                    + memory.research_summary.strip()
+                )
+            if memory.evidence:
+                sections.append(
+                    "Evidence recorded in prior memory:\n"
+                    + "\n".join(f"- {item}" for item in memory.evidence)
+                )
+
+        if memory_context.research_gaps:
+            sections.append(
+                "Previously identified research gaps:\n"
+                + "\n".join(
+                    f"- {gap}" for gap in memory_context.research_gaps
+                )
+            )
+
+        return "\n\n".join(sections)
 
     def retrieve_memory(
         self,
