@@ -1,4 +1,4 @@
-"""Cohort 2 router compatible with Cohort 3's service boundary."""
+"""Research router compatible with the evaluation service boundary."""
 
 from __future__ import annotations
 
@@ -10,13 +10,16 @@ from tools.providers import ResearchProvider
 class RouterService:
     """Select provider capabilities and generate a grounded initial answer."""
 
-    def __init__(self, provider: ResearchProvider) -> None:
+    def __init__(self, provider: ResearchProvider, answer_generator=None) -> None:
         self._provider = provider
+        self._answer_generator = answer_generator
 
     def route(self, query: str, context: str) -> str:
-        """Generate the Cohort 3-compatible initial response from context."""
+        """Generate the initial response from the supplied context."""
         if not context.strip():
             return f"No retrieved evidence is available to answer: {query}"
+        if self._answer_generator is not None:
+            return self._answer_generator.generate(query, context)
         return f"Research request: {query}\n\n{context.strip()}"
 
     def execute(self, state: ResearchState) -> ResearchState:
