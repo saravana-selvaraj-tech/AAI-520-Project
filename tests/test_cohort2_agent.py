@@ -82,3 +82,12 @@ def test_model_answer_generator_preserves_router_output_contract():
     answer = generator.generate("What happened?", "Source: test\nRevenue grew.")
 
     assert answer == "Model answer"
+
+def test_agent_graph_exposes_shared_router_service():
+    """The graph exposes the configured router instance for Cohort 3 reuse."""
+    graph = AgentGraph(InMemoryResearchProvider())
+
+    router_service = graph.get_router_service()
+
+    assert router_service is graph._router
+    assert callable(router_service.route)

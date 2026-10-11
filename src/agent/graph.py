@@ -30,6 +30,15 @@ class AgentGraph:
         state.draft_report = self._router.route(query, state.metadata["context"])
         return state
 
+    def get_router_service(self) -> RouterService:
+        """Return the configured router shared with downstream workflows.
+
+        Cohort 3 can use this same router for the initial answer and for
+        suggestion-driven revisions, preserving the Cohort 2 generation
+        configuration and injected answer generator.
+        """
+        return self._router
+
     def route(self, query: str, context: str) -> str:
         """Expose the Cohort 3 ResearchRouterService protocol."""
-        return self._router.route(query, context)
+        return self.get_router_service().route(query, context)

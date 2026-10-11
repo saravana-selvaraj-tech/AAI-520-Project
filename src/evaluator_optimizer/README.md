@@ -100,3 +100,67 @@ To run the complete test suite:
 ```bash
 pytest -q
 ```
+
+
+## Shared Cohort 2 router integration
+
+`AgentGraph.get_router_service()` returns the graph's configured `RouterService`.
+Pass that same instance to `MemoryAwareResearchService` and the concrete
+`AnswerOptimizer` so the initial draft and every suggestion-driven revision use
+the same answer-generation configuration.
+
+```python
+from agent.graph import AgentGraph
+from evaluator_optimizer.optimization.optimizer import AnswerOptimizer
+from evaluator_optimizer.orchestration.memory_aware_orchestrator import (
+    MemoryAwareResearchService,
+)
+
+graph = AgentGraph(provider, answer_generator=answer_generator)
+router_service = graph.get_router_service()
+answer_optimizer = AnswerOptimizer(router_service)
+
+# Supply answer_optimizer to OptimizationController, then wire the controller
+# and existing memory components into the Cohort 3 facade.
+research_service = MemoryAwareResearchService(
+    router_service=router_service,
+    memory_service=memory_service,
+    memory_builder=memory_builder,
+    optimization_controller=optimization_controller,
+)
+
+# Generate Cohort 2's initial research report before invoking Cohort 3.
+report_state = graph.run(query, ticker=exchange_symbol)
+trace, memory_context = research_service.run(
+    exchange_symbol=exchange_symbol,
+    query=query,
+    context=report_state.metadata["context"],
+    topics=topics,
+)
+```
+
+The concrete `AnswerOptimizer` includes every `OptimizationAction` in its prompt,
+ordered by priority, and delegates the revised response to the same router. The
+router receives the original research context separately from the optimization
+prompt. If no actions are provided or generation returns an empty response, the
+optimizer preserves the existing answer.
+
+
+## Reusing an AgentGraph-generated report
+
+When Cohort 2 has already generated a report, pass that report directly into
+Cohort 3 without regenerating the initial answer:
+
+```python
+trace, memory_context = research_service.run_with_initial_answer(
+    exchange_symbol=ticker,
+    query=query,
+    context=report_state.metadata["context"],
+    initial_answer=report_state.draft_report,
+)
+```
+
+The same `AgentGraph.get_router_service()` instance remains connected to
+`AnswerOptimizer`, so optimization revisions use the graph's configured router.
+The regular `run()` method remains available when Cohort 3 should ask the router
+to generate the initial answer itself.
