@@ -1,4 +1,4 @@
-"""Bounded, LangGraph-shaped orchestration for Cohort 2."""
+"""Bounded orchestration for planning, retrieval, and answer generation."""
 
 from __future__ import annotations
 
@@ -12,9 +12,14 @@ from tools.providers import ResearchProvider
 class AgentGraph:
     """Execute planning, routing, prompt processing, and generation in order."""
 
-    def __init__(self, provider: ResearchProvider, planner: Planner | None = None) -> None:
+    def __init__(
+        self,
+        provider: ResearchProvider,
+        planner: Planner | None = None,
+        answer_generator=None,
+    ) -> None:
         self._planner = planner or Planner()
-        self._router = RouterService(provider)
+        self._router = RouterService(provider, answer_generator)
 
     def run(self, query: str, ticker: str | None = None) -> ResearchState:
         resolved_ticker = ticker or self._planner.extract_ticker(query)

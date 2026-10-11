@@ -1,5 +1,10 @@
 """Cohort 1 provider interfaces consumed by Cohort 2."""
 
+from tools.notebook_adapter import NotebookResearchProvider
 from tools.providers import InMemoryResearchProvider, ResearchProvider
 
-__all__ = ["InMemoryResearchProvider", "ResearchProvider"]
+__all__ = [
+	"InMemoryResearchProvider",
+	"NotebookResearchProvider",
+	"ResearchProvider",
+]
