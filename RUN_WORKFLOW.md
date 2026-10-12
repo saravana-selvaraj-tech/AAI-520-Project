@@ -47,13 +47,13 @@ Fill `.env` locally. Never commit or share it:
 NEWS_API_KEY=your-newsapi-key
 KAGGLE_API_TOKEN=your-kaggle-token
 HF_TOKEN=your-huggingface-token
-HF_MODEL=HuggingFaceH4/zephyr-7b-beta
+HF_MODEL=Qwen/Qwen2.5-0.5B-Instruct
 STOCK_TICKER=AAPL
 DATA_PERIOD=1y
 COMPANY_NAME=Apple Inc.
 ```
 
-`NEWS_API_KEY` is used by the market/news notebook. Yahoo Finance does not require a key. `KAGGLE_API_TOKEN` is used when Kaggle requires authentication. `HF_TOKEN` is used by the hosted Hugging Face inference client. `HF_MODEL` is configurable because provider availability varies by account and region.
+`NEWS_API_KEY` is used by the market/news notebook. Yahoo Finance does not require a key. `KAGGLE_API_TOKEN` is used when Kaggle requires authentication. `HF_TOKEN` is optional for local model loading. `HF_MODEL` selects the local Transformers model and defaults to `Qwen/Qwen2.5-0.5B-Instruct`.
 
 If Hugging Face is unavailable or no token is configured, the workflow uses the deterministic evidence-grounded fallback. This keeps the data and handoff stages runnable without a model request.
 
@@ -107,8 +107,8 @@ Responsibilities:
 - Load `market_<TICKER>.csv` and `news_<TICKER>.json` from `data/processed/`.
 - Adapt those DataFrames through `NotebookResearchProvider`.
 - Build the research graph.
-- Generate an answer through Hugging Face when a usable provider is configured.
-- Fall back to a deterministic evidence-grounded answer when Hugging Face cannot serve the selected model.
+- Generate an answer through the local Qwen model when Transformers and model weights are available.
+- Fall back to a deterministic evidence-grounded answer when the local model cannot be loaded.
 - Validate the downstream handoff contract.
 
 ## 4. Implementation Responsibilities
@@ -156,11 +156,11 @@ News rows are converted into `EvidenceRecord` objects containing source, title, 
 
 `AgentGraph` in [src/agent/graph.py](../src/agent/graph.py) runs planning, retrieval, preprocessing, routing, and answer generation in order.
 
-### Hugging Face generation
+### Local Hugging Face generation
 
-`HuggingFaceAnswerGenerator` in [src/routing/model.py](../src/routing/model.py) uses `huggingface_hub.InferenceClient.chat_completion()` with a grounding instruction. It receives only the research query and constructed evidence context.
+`QwenAnswerGenerator` in [src/routing/model.py](src/routing/model.py) loads the local Qwen model through Transformers and uses `tokenizer.apply_chat_template()` with a grounding instruction. It receives only the research query and constructed evidence context.
 
-The model is injected into `AgentGraph`, so the orchestration layer remains testable without network calls. Tests use a fake chat client.
+The model is injected into `AgentGraph`, so the orchestration layer remains testable without network calls. Tests use fake tokenizer and model objects.
 
 ## 5. Cohort 3 Handoff Contract
 
@@ -242,6 +242,12 @@ The notebook handoff cell must print:
 ```text
 Validated handoff fields: ['answer', 'context', 'query']
 The output is compatible with ResearchRouterService and EvaluationService.
+
+The merged notebook also reports `generation_mode`. It should be `local-qwen`
+when `Qwen/Qwen2.5-0.5B-Instruct` loads successfully, or
+`deterministic-fallback` when model weights are unavailable. The fallback is
+evidence-based and should not begin with `Research request:` or simply repeat
+the user prompt.
 ```
 
 Do not place API keys in notebooks, source files, logs, notebook outputs, or commits.

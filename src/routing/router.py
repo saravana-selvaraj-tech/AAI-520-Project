@@ -20,7 +20,10 @@ class RouterService:
             return f"No retrieved evidence is available to answer: {query}"
         if self._answer_generator is not None:
             return self._answer_generator.generate(query, context)
-        return f"Research request: {query}\n\n{context.strip()}"
+        return (
+            "Based on the retrieved evidence, the available findings are:\n\n"
+            + context.strip()
+        )
 
     def execute(self, state: ResearchState) -> ResearchState:
         """Run planned retrieval tasks and construct provenance-rich context."""
