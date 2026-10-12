@@ -25,6 +25,10 @@ class AnswerOptimizer:
     def __init__(self, router_service: RouterService) -> None:
         self._router_service = router_service
 
+    def set_router_service(self, router_service: RouterService) -> None:
+        """Replace the router used to generate suggestion-driven revisions."""
+        self._router_service = router_service
+
     def optimize(
         self,
         query: str,

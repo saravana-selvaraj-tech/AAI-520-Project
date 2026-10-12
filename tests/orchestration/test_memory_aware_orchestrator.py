@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from evaluator_optimizer.orchestration import memory_aware_orchestrator
 from evaluator_optimizer.orchestration.memory_aware_orchestrator import (
     MemoryAwareResearchService,
 )
@@ -217,6 +218,105 @@ def test_memory_context_is_added_to_router_and_optimizer_contexts():
     assert "FY2025 annual report" in router_context
     assert "Confirm latest quarterly figures" in router_context
     assert "verify against current evidence" in router_context
+
+
+def test_run_question_uses_memory_router_and_persists_optimized_answer(monkeypatch):
+    """Retrieved memory seeds routing and is available to optimization."""
+    memory = _memory("mem-question", ["Verify current valuation"])
+    service, _, memory_service, memory_builder, optimization_controller = (
+        _service(memories=[memory])
+    )
+    provider = object()
+    service._data_provider = provider
+    graph = MagicMock()
+    router = graph.get_router_service.return_value
+    router.route.return_value = "Memory-seeded initial response"
+    trace = optimization_controller.run.return_value
+    monkeypatch.setattr(
+        memory_aware_orchestrator, "AgentGraph", MagicMock(return_value=graph)
+    )
+
+    result_trace, memory_context = service.run_question(
+        question="Assess AAPL valuation.",
+        exchange_symbol=" aapl ",
+    )
+
+    memory_aware_orchestrator.AgentGraph.assert_called_once_with(
+        provider=provider,
+        answer_generator=None,
+    )
+    graph.run.assert_not_called()
+    router.route.assert_called_once()
+    assert router.route.call_args.kwargs["query"] == "Assess AAPL valuation."
+    assert "Prior research summary" in router.route.call_args.kwargs["context"]
+    optimization_controller.set_router_service.assert_called_once_with(router)
+    optimization_controller.run.assert_called_once_with(
+        query="Assess AAPL valuation.",
+        answer="Memory-seeded initial response",
+        context=router.route.call_args.kwargs["context"],
+    )
+    assert memory_context.memories == [memory]
+    assert result_trace is trace
+    memory_builder.build.assert_called_once_with(
+        exchange_symbol="AAPL",
+        query="Assess AAPL valuation.",
+        research_summary="Optimized response",
+        key_findings=[],
+        claims=[],
+        evidence=[],
+        identified_gaps=["Verify current valuation"],
+        evaluation_results=trace.final_evaluation,
+        topics=None,
+    )
+    memory_service.save.assert_called_once()
+    trace.record_memory_retrieved.assert_called_once_with(["mem-question"])
+    trace.record_memory_applied.assert_called_once_with(["mem-question"])
+
+
+def test_run_question_runs_agent_graph_when_memory_is_empty(monkeypatch):
+    """Without memory, AgentGraph performs retrieval and creates the draft."""
+    service, _, _, _, optimization_controller = _service()
+    provider = object()
+    service._data_provider = provider
+    graph = MagicMock()
+    router = graph.get_router_service.return_value
+    graph.run.return_value = SimpleNamespace(
+        draft_report="Fresh graph report",
+        metadata={"context": "Fresh retrieved evidence"},
+    )
+    monkeypatch.setattr(
+        memory_aware_orchestrator, "AgentGraph", MagicMock(return_value=graph)
+    )
+
+    trace, memory_context = service.run_question(
+        question="What are AAPL's recent earnings?",
+        exchange_symbol="aapl",
+    )
+
+    graph.run.assert_called_once_with(
+        query="What are AAPL's recent earnings?",
+        ticker="AAPL",
+    )
+    router.route.assert_not_called()
+    optimization_controller.run.assert_called_once_with(
+        query="What are AAPL's recent earnings?",
+        answer="Fresh graph report",
+        context="Fresh retrieved evidence",
+    )
+    assert memory_context.memories == []
+    assert trace is optimization_controller.run.return_value
+
+
+def test_run_question_validates_question_symbol_and_provider():
+    """The question-only API validates required input and provider setup."""
+    service, *_ = _service()
+
+    with pytest.raises(ValueError, match="question must not be empty"):
+        service.run_question("  ", "AAPL")
+    with pytest.raises(ValueError, match="exchange_symbol must not be empty"):
+        service.run_question("Analyze the company", "  ")
+    with pytest.raises(ValueError, match="data_provider is required"):
+        service.run_question("Analyze the company", "AAPL")
 
 
 def test_retrieve_memory_builds_query_using_requested_topics():

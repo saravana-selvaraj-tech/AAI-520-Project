@@ -169,3 +169,18 @@ def test_controller_rejects_invalid_iteration_count() -> None:
         raise AssertionError(
             "Expected ValueError for max_iterations=0"
         )
+
+def test_controller_updates_router_used_by_answer_optimizer() -> None:
+    """A question workflow can share AgentGraph's router for revisions."""
+    evaluation_service = Mock()
+    optimizer = Mock()
+    replacement_router = Mock()
+    controller = OptimizationController(
+        evaluation_service=evaluation_service,
+        reflection_service=ReflectionService(),
+        answer_optimizer=optimizer,
+    )
+
+    controller.set_router_service(replacement_router)
+
+    optimizer.set_router_service.assert_called_once_with(replacement_router)

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from agent.graph import AgentGraph
+
 from config import DEFAULT_MEMORY_MAX_RESULTS
 from logging_config import get_logger
 from evaluator_optimizer.memory.context import MemoryContext
@@ -26,6 +28,7 @@ from evaluator_optimizer.orchestration.evaluation_trace import (
 )
 if TYPE_CHECKING:
     from routing.router import RouterService
+    from tools.providers import ResearchProvider
 
 
 logger = get_logger("orchestration.memory_aware")
@@ -41,11 +44,15 @@ class MemoryAwareResearchService:
         memory_service: MemoryService,
         memory_builder: MemoryBuilder,
         optimization_controller: OptimizationController,
+        data_provider: ResearchProvider | None = None,
+        answer_generator=None,
     ) -> None:
         self._router_service = router_service
         self._memory_service = memory_service
         self._memory_builder = memory_builder
         self._optimization_controller = optimization_controller
+        self._data_provider = data_provider
+        self._answer_generator = answer_generator
 
     def run(
         self,
@@ -62,6 +69,108 @@ class MemoryAwareResearchService:
             topics=topics,
             initial_answer=None,
         )
+
+    def run_question(
+        self,
+        question: str,
+        exchange_symbol: str,
+    ) -> tuple[EvaluationTrace, MemoryContext]:
+        """Research a question using memory, then evaluate and improve it.
+
+        The method owns the complete question-only workflow: it retrieves prior
+        memory, creates an ``AgentGraph`` for Cohort 2 routing, runs the initial
+        answer through that graph/router, delegates evaluation and reflection
+        to Cohort 3, and persists the final answer for later runs.
+        """
+        if not question or not question.strip():
+            raise ValueError("question must not be empty")
+        if not exchange_symbol or not exchange_symbol.strip():
+            raise ValueError("exchange_symbol must not be empty")
+        if self._data_provider is None:
+            raise ValueError(
+                "data_provider is required for question-only execution"
+            )
+
+        question = question.strip()
+        exchange_symbol = exchange_symbol.strip().upper()
+        logger.info(
+            "Question workflow started | symbol=%s",
+            exchange_symbol,
+        )
+
+        # Create one graph/router and share its router with the optimizer so
+        # any reflection-driven revision uses the same Cohort 2 generation path.
+        agent_graph = AgentGraph(
+            provider=self._data_provider,
+            answer_generator=self._answer_generator,
+        )
+        router_service = agent_graph.get_router_service()
+        self._router_service = router_service
+        self._optimization_controller.set_router_service(router_service)
+
+        memory_context = self.retrieve_memory(
+            exchange_symbol=exchange_symbol,
+            query=question,
+            topics=[],
+        )
+
+        if memory_context.memories:
+            initial_context = self._enrich_context_with_memory(
+                context="",
+                memory_context=memory_context,
+            )
+            initial_answer = router_service.route(
+                query=question,
+                context=initial_context,
+            )
+        else:
+            research_state = agent_graph.run(
+                query=question,
+                ticker=exchange_symbol,
+            )
+            initial_answer = research_state.draft_report
+            initial_context = research_state.metadata.get("context") or ""
+
+        enriched_context = (
+            initial_context
+            if memory_context.memories
+            else self._enrich_context_with_memory(
+                context=initial_context,
+                memory_context=memory_context,
+            )
+        )
+        trace = self._optimization_controller.run(
+            query=question,
+            answer=initial_answer,
+            context=enriched_context,
+        )
+
+        retrieved_ids = [
+            memory.memory_id for memory in memory_context.memories
+        ]
+        trace.record_memory_retrieved(retrieved_ids)
+        final_answer = trace.optimized_answer or trace.initial_answer
+
+        memory = self._memory_builder.build(
+            exchange_symbol=exchange_symbol,
+            query=question,
+            research_summary=final_answer,
+            key_findings=[],
+            claims=[],
+            evidence=[],
+            identified_gaps=memory_context.research_gaps,
+            evaluation_results=trace.final_evaluation,
+            topics=None,
+        )
+        self._memory_service.save(memory)
+        trace.record_memory_applied(retrieved_ids)
+
+        logger.info(
+            "Question workflow completed | symbol=%s | retrieved=%d",
+            exchange_symbol,
+            len(retrieved_ids),
+        )
+        return trace, memory_context
 
     def run_with_initial_answer(
         self,

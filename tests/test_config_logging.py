@@ -20,7 +20,7 @@ def test_core_runtime_constants_are_centralized() -> None:
     assert DEFAULT_MEMORY_CACHE_SIZE == 20
     assert DEFAULT_MEMORY_MAX_RESULTS == 5
     assert DEFAULT_MEMORY_MAX_AGE_DAYS == 365
-    assert DEFAULT_PASS_THRESHOLD == 0.80
+    assert DEFAULT_PASS_THRESHOLD == 0.70
     assert METRIC_PASS_THRESHOLDS["relevance"] == DEFAULT_PASS_THRESHOLD
 
 

@@ -155,3 +155,25 @@ def test_optimizer_reuses_router_service_exposed_by_agent_graph() -> None:
     assert generator.calls[0] == ("Summarize revenue.", "SEC evidence")
     assert "Include the source and reporting period." in generator.calls[1][0]
     assert generator.calls[1][1] == "SEC evidence"
+
+
+def test_optimizer_replaces_router_service() -> None:
+    """Subsequent revisions are sent to the replacement router."""
+    original_router = RecordingRouter()
+    replacement_router = RecordingRouter(response="Updated router response.")
+    optimizer = AnswerOptimizer(original_router)
+    action = _action(
+        OptimizationActionType.CLARIFY,
+        EvaluationMetric.CLARITY,
+        "Clarify the conclusion.",
+        ReflectionPriority.MEDIUM,
+    )
+
+    optimizer.set_router_service(replacement_router)
+    answer = optimizer.optimize(
+        query="Question", answer="Draft", context="Evidence", actions=[action]
+    )
+
+    assert answer == "Updated router response."
+    assert original_router.calls == []
+    assert len(replacement_router.calls) == 1

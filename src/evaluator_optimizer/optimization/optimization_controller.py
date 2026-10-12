@@ -86,6 +86,10 @@ class OptimizationController:
         self._answer_optimizer = answer_optimizer
         self._max_iterations = max_iterations
 
+    def set_router_service(self, router_service) -> None:
+        """Use the supplied Cohort 2 router for all optimizer revisions."""
+        self._answer_optimizer.set_router_service(router_service)
+
     def run(
         self,
         query: str,
