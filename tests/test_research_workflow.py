@@ -3,7 +3,7 @@ import pandas as pd
 from agent.graph import AgentGraph
 from agent.state import EvidenceRecord
 from planning.planner import Planner, TaskType
-from routing.model import HuggingFaceAnswerGenerator
+from routing.model import QwenAnswerGenerator
 from tools.notebook_adapter import NotebookResearchProvider
 from tools.providers import InMemoryResearchProvider
 
@@ -69,17 +69,49 @@ def test_notebook_provider_converts_market_and_news_outputs():
     assert news[0].url == "https://example.test/article"
 
 
-class FakeChatClient:
-    def chat_completion(self, **kwargs):
-        return type(
-            "Response",
-            (),
-            {"choices": [type("Choice", (), {"message": type("Message", (), {"content": "Model answer"})()})()]},
-        )()
+class FakeInputs(dict):
+    def to(self, device):
+        return self
+
+
+class FakeTokenizer:
+    eos_token_id = 0
+
+    def apply_chat_template(self, messages, **kwargs):
+        return FakeInputs({"input_ids": FakeTokenSequence(3)})
+
+    def decode(self, tokens, skip_special_tokens=True):
+        return "Model answer"
+
+
+class FakeTokenSequence:
+    shape = (1, 3)
+
+    def __init__(self, prompt_length):
+        self.prompt_length = prompt_length
+
+    def __getitem__(self, item):
+        return self
+
+
+class FakeModel:
+    def to(self, device):
+        return self
+
+    def eval(self):
+        return self
+
+    def generate(self, **kwargs):
+        return [FakeTokenSequence(3)]
 
 
 def test_model_answer_generator_preserves_router_output_contract():
-    generator = HuggingFaceAnswerGenerator(FakeChatClient(), model="test-model")
+    generator = QwenAnswerGenerator(
+        model_name="test-model",
+        tokenizer=FakeTokenizer(),
+        model=FakeModel(),
+        device="cpu",
+    )
 
     answer = generator.generate("What happened?", "Source: test\nRevenue grew.")
 
