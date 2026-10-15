@@ -24,11 +24,12 @@ class RouterService:
             "Based on the retrieved evidence, the available findings are:\n\n"
             + context.strip()
         )
-
+        
     def execute(self, state: ResearchState) -> ResearchState:
         """Run planned retrieval tasks and construct provenance-rich context."""
         for task in state.research_plan:
             try:
+                print(f"Executing task type: {task.task_type}")
                 self._execute_task(state, task)
                 task.status = "completed"
                 state.completed_tasks.append(task.task_id)
@@ -59,8 +60,8 @@ class RouterService:
         sections = []
         if state.financial_data:
             sections.append("Financial data:\n" + "\n".join(f"- {key}: {value}" for key, value in state.financial_data.items()))
-        for record in state.evidence:
-            sections.append(f"Evidence: {record.citation()}\n{record.content}")
+        for record in state.evidence[:5]:
+            sections.append(f"Evidence: {record.citation()}\n{record.content[:250]}")
         return "\n\n".join(sections)
 
     @staticmethod

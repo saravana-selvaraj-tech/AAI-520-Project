@@ -33,7 +33,7 @@ class ResearchTask(BaseModel):
 class Planner:
     """Convert a user request into deterministic, executable tasks."""
 
-    SYMBOLS: ClassVar[set[str]] = {"AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "GOOG"}
+    SYMBOLS: ClassVar[set[str]] = {"AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "GOOG", "SNDK", "NTNX"}
 
     def plan(self, query: str, ticker: str | None = None) -> list[ResearchTask]:
         if not query.strip():
@@ -51,10 +51,12 @@ class Planner:
             tasks.insert(0, ResearchTask(task_type=TaskType.FINANCIAL, description="Retrieve and analyze financial performance."))
         if any(word in normalized for word in ("risk", "uncertainty", "downside")) or not any(task.task_type is TaskType.RISK for task in tasks):
             tasks.append(ResearchTask(task_type=TaskType.RISK, description="Identify material risks and uncertainties."))
+        
         tasks.extend([
             ResearchTask(task_type=TaskType.REPORT, description="Synthesize an evidence-supported research report."),
             ResearchTask(task_type=TaskType.EVALUATION, description="Evaluate relevance, grounding, and completeness."),
         ])
+        
         return tasks
 
     @classmethod
@@ -62,7 +64,9 @@ class Planner:
         match = re.search(r"\b[A-Z]{2,5}\b", query)
         if match and match.group() in cls.SYMBOLS:
             return match.group()
-        for name, symbol in {"apple": "AAPL", "microsoft": "MSFT", "nvidia": "NVDA", "amazon": "AMZN", "alphabet": "GOOGL", "google": "GOOGL"}.items():
+        for name, symbol in {"apple": "AAPL", "microsoft": "MSFT", "nvidia": "NVDA",
+                    "sandisk": "SNDK", "nutanix": "NTNX",
+                    "amazon": "AMZN", "alphabet": "GOOGL", "google": "GOOGL"}.items():
             if name in query.casefold():
                 return symbol
         return None

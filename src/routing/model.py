@@ -14,7 +14,7 @@ class QwenAnswerGenerator:
         tokenizer: Any | None = None,
         model: Any | None = None,
         device: str | None = None,
-        max_new_tokens: int = 384,
+        max_new_tokens: int = 2000,
     ) -> None:
         import torch
 

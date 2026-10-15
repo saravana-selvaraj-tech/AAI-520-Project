@@ -10,6 +10,7 @@ Cohort 3 owns evaluation, reflection, optimization, and persistence.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from agent.graph import AgentGraph
@@ -26,9 +27,10 @@ from evaluator_optimizer.optimization.optimization_controller import (
 from evaluator_optimizer.orchestration.evaluation_trace import (
     EvaluationTrace,
 )
-if TYPE_CHECKING:
-    from routing.router import RouterService
-    from tools.providers import ResearchProvider
+
+
+from routing.router import RouterService
+from tools.providers import ResearchProvider
 
 
 logger = get_logger("orchestration.memory_aware")
@@ -111,7 +113,7 @@ class MemoryAwareResearchService:
         memory_context = self.retrieve_memory(
             exchange_symbol=exchange_symbol,
             query=question,
-            topics=[],
+             topics=["financial-performance", "market", "news", "risk"],
         )
 
         if memory_context.memories:
@@ -155,10 +157,19 @@ class MemoryAwareResearchService:
             exchange_symbol=exchange_symbol,
             query=question,
             research_summary=final_answer,
-            key_findings=[],
+            key_findings=self._extract_key_findings(final_answer),
             claims=[],
-            evidence=[],
-            identified_gaps=memory_context.research_gaps,
+            evidence=(
+                []
+                if memory_context.memories
+                else self._extract_evidence(initial_context)
+            ),
+            identified_gaps=self._deduplicate(
+                [
+                    *memory_context.research_gaps,
+                    *self._extract_unresolved_gaps(trace),
+                ]
+            ),
             evaluation_results=trace.final_evaluation,
             topics=None,
         )
@@ -251,15 +262,21 @@ class MemoryAwareResearchService:
         )
 
         final_answer = trace.optimized_answer or trace.initial_answer
+        key_findings = self._extract_key_findings(final_answer)
+        current_evidence = self._extract_evidence(context)
+        unresolved_gaps = self._extract_unresolved_gaps(trace)
+        identified_gaps = self._deduplicate(
+            [*memory_context.research_gaps, *unresolved_gaps]
+        )
 
         memory = self._memory_builder.build(
             exchange_symbol=exchange_symbol,
             query=query,
             research_summary=final_answer,
-            key_findings=[],
+            key_findings=key_findings,
             claims=[],
-            evidence=[],
-            identified_gaps=memory_context.research_gaps,
+            evidence=current_evidence,
+            identified_gaps=identified_gaps,
             evaluation_results=trace.final_evaluation,
             topics=topics,
         )
@@ -283,35 +300,116 @@ class MemoryAwareResearchService:
         context: str,
         memory_context: MemoryContext,
     ) -> str:
-        """Append retrieved summaries and known gaps to the runtime context.
+        """Append historical memory while preserving current evidence as distinct.
 
-        Memory is presented as prior research, not as independently verified
-        current evidence. The evaluation and optimization workflow can then
-        reuse relevant details while retaining the supplied current context.
+        Historical summaries and evidence are useful leads, not proof of current
+        facts. The explicit label helps generation and evaluation distinguish
+        them from the current retrieval context.
         """
-        sections = [context.strip()] if context.strip() else []
+        sections = [context.strip()] if context and context.strip() else []
 
         for memory in memory_context.memories:
-            if memory.research_summary.strip():
+            summary = str(
+                getattr(memory, "research_summary", "") or ""
+            ).strip()
+            if summary:
                 sections.append(
                     "Prior research memory (verify against current evidence):\n"
-                    + memory.research_summary.strip()
+                    + summary
                 )
-            if memory.evidence:
+
+            findings = getattr(memory, "key_findings", []) or []
+            if findings:
                 sections.append(
-                    "Evidence recorded in prior memory:\n"
-                    + "\n".join(f"- {item}" for item in memory.evidence)
+                    "Findings recorded in prior memory (re-verify):\n"
+                    + "\n".join(f"- {item}" for item in findings)
+                )
+
+            evidence = getattr(memory, "evidence", []) or []
+            if evidence:
+                sections.append(
+                    "Evidence recorded in prior memory (re-verify):\n"
+                    + "\n".join(f"- {item}" for item in evidence)
                 )
 
         if memory_context.research_gaps:
             sections.append(
-                "Previously identified research gaps:\n"
+                "Previously identified research gaps to check:\n"
                 + "\n".join(
                     f"- {gap}" for gap in memory_context.research_gaps
                 )
             )
 
         return "\n\n".join(sections)
+
+    @staticmethod
+    def _extract_key_findings(answer: str) -> list[str]:
+        """Extract concise report bullets for future memory retrieval."""
+        findings: list[str] = []
+        for line in (answer or "").splitlines():
+            item = line.strip()
+            if item.startswith("#"):
+                continue
+            if item.startswith(("- ", "* ", "• ")) or re.match(
+                r"^\d+[.)]\s+", item
+            ):
+                item = re.sub(
+                    r"^(?:[-*•]\s+|\d+[.)]\s+)", "", item
+                ).strip()
+                if len(item) >= 12:
+                    findings.append(item[:500])
+        return MemoryAwareResearchService._deduplicate(findings)[:20]
+
+    @staticmethod
+    def _extract_evidence(context: str) -> list[str]:
+        """Persist excerpts from the current run's context, not historical memory."""
+        lines = [
+            " ".join(line.split())
+            for line in (context or "").splitlines()
+            if line.strip()
+        ]
+        return MemoryAwareResearchService._deduplicate(lines)[:30]
+
+    @staticmethod
+    def _extract_unresolved_gaps(trace: EvaluationTrace) -> list[str]:
+        """Capture issues still present in the final evaluation."""
+        gaps: list[str] = []
+        evaluations = getattr(trace, "final_evaluation", None)
+
+        if evaluations is None:
+            evaluations = []
+        elif not isinstance(evaluations, (list, tuple)):
+            evaluations = (
+                [evaluations] if hasattr(evaluations, "passed") else []
+            )
+
+        for result in evaluations:
+            if getattr(result, "passed", True):
+                continue
+            for issue in getattr(result, "issues", []) or []:
+                description = (
+                    getattr(issue, "description", None)
+                    or getattr(issue, "rationale", None)
+                    or str(issue)
+                ).strip()
+                if description:
+                    gaps.append(description[:500])
+
+        # Use the final evaluation so resolved issues are not carried forward.
+        return MemoryAwareResearchService._deduplicate(gaps)
+
+    @staticmethod
+    def _deduplicate(items: list[str]) -> list[str]:
+        """Deduplicate text without changing first-seen order."""
+        output: list[str] = []
+        seen: set[str] = set()
+        for item in items:
+            normalized = " ".join(str(item).split())
+            key = normalized.casefold()
+            if normalized and key not in seen:
+                seen.add(key)
+                output.append(normalized)
+        return output
 
     def retrieve_memory(
         self,
@@ -327,7 +425,7 @@ class MemoryAwareResearchService:
                 exchange_symbol=exchange_symbol,
                 topics=topics,
                 query_signature=query_signature,
-                query_text=None,
+                query_text=query,
                 max_results=DEFAULT_MEMORY_MAX_RESULTS,
             )
         )
@@ -337,7 +435,7 @@ class MemoryAwareResearchService:
         for memory in results:
             context.add_memory(memory)
 
-            for gap in memory.identified_gaps:
+            for gap in getattr(memory, "identified_gaps", []) or []:
                 context.add_research_gap(gap)
 
         return context
