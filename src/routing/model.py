@@ -33,18 +33,13 @@ class QwenAnswerGenerator:
         self.model = model.to(self.device)
         self.model.eval()
 
-    def generate(self, query: str, context: str) -> str:
+    def generate(self, query: str, context: str, system_context: str = None) -> str:
         if not context.strip():
             return f"No retrieved evidence is available to answer: {query}"
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "You are an investment research agent. Answer the question "
-                    "using only the evidence provided. Do not repeat the prompt. "
-                    "Preserve dates and numbers, cite source labels, and say "
-                    "when the evidence is insufficient."
-                ),
+                "content": system_context if system_context else "Act as an Financial Research Agent",
             },
             {
                 "role": "user",

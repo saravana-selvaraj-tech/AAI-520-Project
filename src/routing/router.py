@@ -14,12 +14,13 @@ class RouterService:
         self._provider = provider
         self._answer_generator = answer_generator
 
-    def route(self, query: str, context: str) -> str:
+    def route(self, query: str, context: str, system_context: str = None) -> str:
         """Generate the initial response from the supplied context."""
+        print(f"System contex exist? {system_context!=None}")
         if not context.strip():
             return f"No retrieved evidence is available to answer: {query}"
         if self._answer_generator is not None:
-            return self._answer_generator.generate(query, context)
+            return self._answer_generator.generate(query, context, system_context)
         return (
             "Based on the retrieved evidence, the available findings are:\n\n"
             + context.strip()

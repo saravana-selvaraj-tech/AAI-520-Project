@@ -48,15 +48,16 @@ class AnswerOptimizer:
             logger.info("Optimization skipped because no actions were supplied")
             return answer
 
-        prompt = self._build_prompt(
+        system_prompt = self._build_prompt(
             query=query,
             answer=answer,
             actions=actions,
         )
         logger.info("Generating optimized answer | action_count=%d", len(actions))
         revised_answer = self._router_service.route(
-            query=prompt,
+            query=query,
             context=context,
+            system_context=system_prompt,
         )
         if not revised_answer or not revised_answer.strip():
             logger.warning("Router returned an empty optimized answer; preserving draft")

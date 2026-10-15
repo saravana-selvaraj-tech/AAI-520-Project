@@ -16,8 +16,10 @@ class RecordingRouter:
         self.response = response
         self.calls: list[dict[str, str]] = []
 
-    def route(self, query: str, context: str) -> str:
-        self.calls.append({"query": query, "context": context})
+    def route(self, query: str, context: str, system_context: str = None) -> str:
+        self.calls.append(
+            {"query": query, "context": context, "system_context": system_context or ""}
+        )
         return self.response
 
 
@@ -70,7 +72,10 @@ def test_optimizer_routes_prompt_containing_every_action_and_original_answer() -
     assert len(router.calls) == 1
     call = router.calls[0]
     assert call["context"] == "SEC filing: Revenue increased 8% in FY2025."
-    prompt = call["query"]
+    # The router query remains the user's query; revision instructions are
+    # passed through the dedicated system_context argument.
+    assert call["query"] == "Summarize revenue."
+    prompt = call["system_context"]
     assert "Summarize revenue." in prompt
     assert "Revenue is booming." in prompt
     assert "Define the comparison period." in prompt
@@ -119,11 +124,13 @@ def test_optimizer_reuses_router_service_exposed_by_agent_graph() -> None:
 
     class PromptAwareGenerator:
         def __init__(self) -> None:
-            self.calls: list[tuple[str, str]] = []
+            self.calls: list[tuple[str, str, str | None]] = []
 
-        def generate(self, query: str, context: str) -> str:
-            self.calls.append((query, context))
-            if "Required optimization actions" in query:
+        def generate(
+            self, query: str, context: str, system_context: str = None
+        ) -> str:
+            self.calls.append((query, context, system_context))
+            if system_context and "Required optimization actions" in system_context:
                 return "Optimized answer with source and period."
             return "Initial answer."
 
@@ -152,8 +159,9 @@ def test_optimizer_reuses_router_service_exposed_by_agent_graph() -> None:
     assert initial == "Initial answer."
     assert revised == "Optimized answer with source and period."
     assert len(generator.calls) == 2
-    assert generator.calls[0] == ("Summarize revenue.", "SEC evidence")
-    assert "Include the source and reporting period." in generator.calls[1][0]
+    assert generator.calls[0] == ("Summarize revenue.", "SEC evidence", None)
+    assert generator.calls[1][0] == "Summarize revenue."
+    assert "Include the source and reporting period." in (generator.calls[1][2] or "")
     assert generator.calls[1][1] == "SEC evidence"
 
 
