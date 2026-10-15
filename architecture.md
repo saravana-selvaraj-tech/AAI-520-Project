@@ -1,934 +1,229 @@
-# AAI-520 Autonomous Investment Research Agent — Architecture
+# System Architecture — AAI-520 Autonomous Investment Research Agent
 
-## 1. Architecture Overview
+## 1. Purpose and scope
 
-The AAI-520 project implements an **Autonomous Investment Research Agent** using a modular agentic architecture.
+The AAI-520 Autonomous Investment Research Agent is an end-to-end research workflow that combines market/news data collection, financial-text preparation, evidence-based answer generation, and an evaluator–optimizer loop. The implementation is organized as a Python source package under `src/` and a sequential notebook workflow under `notebooks/`.
 
-The system transforms a high-level research question into a sequence of specialized research activities and orchestrates those activities through a stateful workflow.
+This document describes the implemented responsibilities and the main runtime handoffs. It intentionally distinguishes implemented application components from external data/model dependencies and notebook orchestration. It does not treat every possible research capability as implemented merely because it could fit the architecture.
 
-The core architecture follows:
+## 2. High-level architecture
 
-```text
-User Request
-     │
-     ▼
-┌───────────────┐
-│    Planner    │
-│ Decomposition │
-└───────┬───────┘
-        │
-        ▼
-┌───────────────┐
-│    Router     │
-│ Tool Selection│
-└───────┬───────┘
-        │
- ┌──────┼──────────────┐
- │      │              │
- ▼      ▼              ▼
-Financial News       SEC /
-Tools    Tools       Filings
- │      │              │
- └──────┼──────────────┘
-        ▼
-┌──────────────────────┐
-│ Retrieval & Context  │
-│ Construction         │
-└──────────┬───────────┘
-           ▼
-┌──────────────────────┐
-│    Prompt Chain      │
-│ Process → Classify → │
-│ Extract → Summarize  │
-└──────────┬───────────┘
-           ▼
-┌──────────────────────┐
-│   Report Generator   │
-└──────────┬───────────┘
-           ▼
-┌──────────────────────┐
-│ Evaluator–Optimizer  │
-└──────────┬───────────┘
-           │
-      ┌────┴────┐
-      │         │
-     Pass     Improve
-      │         │
-      │         └──────────┐
-      ▼                    │
-┌───────────────┐          │
-│    Memory     │◄─────────┘
-└───────┬───────┘
-        ▼
-┌──────────────────────┐
-│ Final Research Report│
-└──────────────────────┘
+```mermaid
+flowchart TD
+    A["01: Market and News Collection"] --> D[("Market / News Artifacts")]
+    B["02: Financial Text Preparation"] --> E[("financial_sentiment_clean.csv + in-memory BoW / TF-IDF")]
+    C0["03: SEC EDGAR Filing Collection"] --> F0[("filings_TICKER.json")]
+
+    D --> C["AAI520 Investment Research Agent"]
+    F0 --> C
+    E -. "separate text-analysis workflow; not directly loaded by current integration notebook" .-> X["Optional downstream experiment"]
+    C --> F["AgentGraph"]
+    F --> G["Research Planning"]
+    G --> H["RouterService and Research Tools"]
+    H --> I["Retrieved Candidate Evidence"]
+    I --> R["Recall@k: Select Top-k Contexts"]
+    R --> J["Answer Generator: Qwen2.5-0.5B-Instruct"]
+    J --> K["Initial Research Answer"]
+
+    K --> L["MemoryAwareResearchService"]
+    R --> L
+    L --> M["LLM-as-a-Judge Evaluator"]
+    M --> N["Configured Evaluator Platform and Model"]
+    N --> N1["Demonstration: Groq / openai/gpt-oss-120b"]
+    N --> N2["Alternatives: OpenAI or Hugging Face"]
+    N1 --> O["Evaluation Scores and Issues"]
+    N2 --> O
+    O --> P["Reflection and Issue Prioritization"]
+    P --> Q{"Optimization Needed?"}
+
+    Q -->|Yes| S["Revise Answer or Retrieve More Evidence"]
+    S --> J
+    S --> H
+    Q -->|No| T["Final Answer and Evaluation Trace"]
+
+    L <--> U[("Memory")]
 ```
 
----
+The notebooks provide data-preparation and execution steps. Notebook 02 creates a separate cleaned financial-sentiment dataset and in-memory BoW/TF-IDF features; these are not currently consumed by the integration notebook. The live integrated path loads market, news, and SEC filing artifacts, then uses the Python package for research, evidence processing, generation, routing, evaluation, optimization, and memory. The final notebook coordinates the research run and subsequent evaluation/optimization handoff.
 
-# 2. Architectural Principles
+## 3. Notebook workflow
 
-The architecture follows several principles.
+Run the notebooks from the repository root. The recommended sequence is market/news collection, financial-text preparation, SEC filing collection, and then the integrated research notebook. Notebook 02 is a complementary preparation experiment; the current integrated notebook does not directly consume its cleaned CSV or vectorizer matrices.
 
-### Modularity
+### 3.1 `notebooks/01_market_news_collection.ipynb`
 
-Each major capability is implemented as an independent component.
+**Responsibility:** Collect the market-history and company/news information used by the research workflow, according to the configured ticker, period, and data-provider credentials.
 
-### Separation of Concerns
+**Expected result:** Data previews and collection status in the notebook, plus the data artifacts written by its cells for later stages. Check the notebook's output paths and record counts rather than assuming that a particular artifact was produced when a provider call fails or returns no records.
 
-Data acquisition, retrieval, reasoning, evaluation, and presentation are separated.
+### 3.2 `notebooks/02_financial_text_preparation.ipynb`
 
-### Tool Independence
+**Responsibility:** Download the `sbhatti/financial-sentiment-analysis` dataset with `kagglehub`, validate `Sentence`/`Sentiment`, remove missing and duplicate rows, normalize labels, clean text, and encode sentiment as -1/0/1. It writes `data/processed/financial_sentiment_clean.csv`.
 
-The agent should not directly depend on a specific data provider where avoidable.
+The notebook then performs a stratified 80/20 train/test split (`random_state=42`) and builds unigram/bigram Bag-of-Words and TF-IDF matrices with up to 5,000 features. The vectorizers and matrices are held in memory rather than persisted.
 
-### Evidence-Based Generation
+**Integration boundary:** The current integrated research notebook does not load `financial_sentiment_clean.csv` or use these BoW/TF-IDF matrices. This is a separate financial-text preparation/experimentation path; the integrated notebook's own prompt-chain preprocessing is performed by `process_evidence()` within `AgentGraph.run()`.
 
-Generated conclusions should be grounded in retrieved information.
+### 3.3 `notebooks/03_filings_collection.ipynb`
 
-### Iterative Improvement
+**Responsibility:** Collect SEC EDGAR filing evidence through `NotebookResearchProvider.filings()`. The adapter resolves the ticker to a CIK, requests the SEC submissions index, and downloads bounded primary-document text for recent annual, quarterly, current, and selected foreign-issuer filing types. The query can be narrowed to form types such as `10-K` and `10-Q`.
 
-The first generated report is not necessarily treated as the final answer. An evaluator determines whether additional research or revision is required.
+**Artifact and contract:** The notebook writes `data/processed/filings_<TICKER>.json` with the ticker, collection timestamp, source label, and serialized `EvidenceRecord` objects. Records preserve source/title/date/ticker, filing URL and document/accession identifier, plus a bounded text excerpt. The integration notebook loads the JSON `filings` array, validates each row as an `EvidenceRecord`, and passes the records into `NotebookResearchProvider` with the market and news data.
 
-### Extensibility
+Set `SEC_USER_AGENT` to a descriptive application name and real contact address, keep request rates reasonable, and verify filing URLs and empty-result warnings. The artifact is required by the current integration notebook.
 
-New companies, tools, data sources, retrieval strategies, and evaluation methods should be addable without redesigning the entire system.
+### 3.4 `notebooks/AAI520_Investment_Research_Agent.ipynb`
 
----
+**Responsibility:** Load `market_<TICKER>.csv`, `news_<TICKER>.json`, and `filings_<TICKER>.json`; construct `NotebookResearchProvider` with market, news, and filing evidence; run `AgentGraph`; inspect its research plan and processed evidence; and pass the initial answer/context plus the graph-owned `RouterService` into the evaluator–optimizer workflow.
 
-# 3. Major Components
+**Expected result:** The research question and company context, retrieved evidence/context, initial answer, evaluation findings, reflection/optimization activity, and final response or evaluation trace, as exposed by the notebook's output cells.
 
-## 3.1 User Interface
+The notebook is the main end-to-end entry point. In the current version, it requires the market/news and filing artifacts. Notebook 02 is not a direct input to this execution path.
 
-The user submits a natural-language research request.
+## 4. Runtime component responsibilities (`src/`)
 
-Example:
+The sections below describe the main responsibilities reflected by the current implementation history. Exact module paths and class names should be kept aligned with the source tree when code is refactored.
 
-```text
-Analyze Microsoft and provide an investment research report
-covering financial performance, recent news, market trends,
-and major risks.
+### 4.1 Research graph and state
+
+**`AgentGraph`** is the entry point for the research graph. It coordinates the research workflow and provides access to the `RouterService` through its router-service accessor. The graph produces the initial draft/report and exposes associated metadata, including research context where available.
+
+The graph and its state are responsible for coordinating research steps, not for owning the evaluator's scoring rubric. Keeping this boundary allows the research workflow to be exercised separately from the optimization loop.
+
+### 4.2 Planning and routing
+
+Planning converts the research request into work that can be executed by the research workflow. Routing directs each research operation to the appropriate provider or tool.
+
+**`RouterService`** is the shared routing capability used by the research graph and by the evaluator–optimizer when additional research is needed. Reusing this service avoids a second, inconsistent routing implementation and keeps follow-up retrieval aligned with the initial research path.
+
+Provider availability and the specific data returned depend on the configured source integrations and their successful execution. Do not assume a tool is active solely because it appears in a conceptual plan.
+
+### 4.3 Evidence and answer generation
+
+The research workflow combines available provider output into a context used by the answer generator. The answer generator produces the initial answer/report from the research request and that context.
+
+The implementation can use a configured local Hugging Face model where dependencies and model files are available. Where the implementation provides a fallback path, the workflow may generate a deterministic evidence-oriented response if local model loading is unavailable. The fallback should not be interpreted as equivalent to a full language model.
+
+The evidence context is passed forward with the initial answer so that evaluation can judge the response against the information actually supplied to it.
+
+### 4.4 Evaluator–optimizer orchestration
+
+**`MemoryAwareResearchService`** coordinates the evaluation/optimization workflow and supports a handoff using an already-generated answer. Its `run_with_initial_answer()` path allows the final notebook to pass in the initial report and context instead of unnecessarily restarting the entire research graph.
+
+The service accepts the configured data-provider and answer-generator dependencies. If the enriched context is empty, the implementation can fall back to `AgentGraph.run()` to obtain research output, including the draft report and available context metadata. This makes the initial-answer handoff and the fallback research path explicit.
+
+The evaluation/optimization cycle is:
+
+1. **Evaluate:** assess the answer against the question and supplied context using the configured evaluator.
+2. **Reflect:** interpret evaluation results and identify actionable deficiencies.
+3. **Prioritize:** classify or rank issues using the implementation's configured issue and severity rules.
+4. **Optimize:** revise the response and, where the orchestration determines more evidence is needed, use the shared router/research capability.
+5. **Re-evaluate:** check the revised response under the same evaluation setup.
+6. **Stop and record:** finish when the acceptance criteria are satisfied or the configured iteration limit is reached; retain the available result and trace.
+
+Exact metric names, score ranges, thresholds, issue-severity mappings, and stop conditions are implementation/configuration details. They must be documented from the evaluator and configuration code, not inferred from the architecture diagram.
+
+### 4.5 Evaluation and issue severity
+
+The evaluator produces quality signals for the current response according to the active evaluator implementation. The reflection stage turns those signals into issues or improvement suggestions. Severity and optimization decisions are based on the configured mapping and thresholds.
+
+An evaluator score is a rubric result, not automatically a calibrated probability or guarantee of factual correctness. Interpret it together with the score definition, evaluator comments, retrieved context, and initial/final answer comparison.
+
+### 4.6 Memory
+
+The memory subsystem supports retention and retrieval of useful workflow/evaluation information, as implemented by its memory models, cache/repository, and serialization components. The memory-aware service integrates this capability with the research/evaluation workflow.
+
+Memory is supporting context and traceability; it does not replace evidence retrieval or prove that a generated claim is correct. Persistence behavior depends on the configured repository and runtime settings.
+
+### 4.7 Configuration and logging
+
+Configuration is centralized where supported by the application configuration module and environment file. `.env.example` documents the variable names expected by the repository; `.env` supplies machine-specific values and must not be committed.
+
+The evaluator configuration uses these environment variables:
+
+| Variable | Purpose | Configuration guidance |
+|---|---|---|
+| `GROQ_API_KEY` | Credentials for the Groq evaluator interface | Required when Groq is the selected evaluator provider |
+| `OPENAI_API_KEY` | Credentials for the OpenAI evaluator interface | Required when OpenAI is the selected evaluator provider |
+| `EVALUATOR_MODEL` | Evaluator model identifier | Defaults to `gpt-5.4-mini`; override it to select another supported evaluator model, such as `openai/gpt-oss-120b` for the demonstrated Groq setup |
+
+Set the API key that corresponds to the selected provider and keep it in the local `.env` file. The supported Hugging Face evaluator option may use `HF_TOKEN` where model access requires it. Provider/model compatibility and credentials must be validated for the chosen configuration.
+
+Logging is configured through the project's logging configuration and component loggers. Logs help trace execution stages and diagnose data-source, model-loading, routing, evaluation, and optimization failures. Use the configured log level and output destination; do not assume a log filename or directory unless it is defined in the checked-out configuration. Secrets must not be written to logs.
+
+## 4.8 Separate answer-generation and evaluation models
+
+The workflow uses distinct model roles for producing an answer and judging its quality.
+
+### Answer generation
+
+The configured local generation path uses `Qwen/Qwen2.5-0.5B-Instruct` through Hugging Face Transformers, where model files and dependencies are available. It consumes the research question and the evidence/context assembled by the research workflow to generate the initial answer and requested revisions. CPU inference may be slow, and model capacity can affect response quality.
+
+### Recall@k evidence selection
+
+Before generation, the retrieval strategy selects the **top-*k* contexts** ranked as relevant to the research question and supplies those contexts as evidence to the answer generator. The parameter *k* determines how many retrieved contexts are included. Increasing *k* can improve evidence coverage but may also add irrelevant material, increase prompt size, and raise latency.
+
+Recall@k can refer to a retrieval evaluation metric that measures the proportion of relevant items found among the top-*k* results. The exact calculation depends on the implementation's relevance labels and ground-truth set. Therefore, the use of top-*k* contexts as generation evidence and a numeric Recall@k score are related but distinct claims: document the selection behavior from the retrieval code, and report a measured recall score only when its calculation and evaluation data are available.
+
+### Evaluation and platform flexibility
+
+The evaluator is a separate, configurable LLM-as-a-Judge. The implementation supports choosing an evaluator model through **Groq, OpenAI, or Hugging Face**, subject to the selected provider's model availability, credentials, API compatibility, and structured-output support. The project's demonstration uses **Groq with `openai/gpt-oss-120b`** as the evaluation model.
+
+The evaluator receives the question, candidate answer, relevant evidence/context, and configured rubric. It returns evaluation findings—such as scores, issues, or recommendations—which are used by reflection and optimization. The answer generator and evaluator are separate roles so that judging does not depend solely on the generator's self-assessment. This separation may reduce some self-evaluation bias but does not guarantee that the evaluator is unbiased or factually correct.
+
+Model IDs and provider settings should be configured independently for generation and evaluation. `HF_MODEL` configures answer generation, while `EVALUATOR_MODEL` selects the evaluator and defaults to `gpt-5.4-mini`. Supply `GROQ_API_KEY` or `OPENAI_API_KEY` for the corresponding evaluator interface; Hugging Face may require `HF_TOKEN`. The Groq demonstration can override `EVALUATOR_MODEL` to `openai/gpt-oss-120b`. Logging should identify the selected model role and workflow stage where useful, while never recording API keys or other secrets. Tests should cover provider configuration, evaluator input/output validation, top-*k* context selection, and the evaluation/optimization handoff.
+
+## 5. Data and control flow
+
+The key runtime handoff is. The generator and evaluator are distinct model roles, and Recall@k selects the top-*k* retrieved contexts supplied as evidence to answer generation:
+
+1. The final notebook sets up the research question and company/ticker context.
+2. `AgentGraph` coordinates planning, routing, retrieval, context construction, and initial answer/report generation.
+3. The notebook passes the initial answer and available research context to `MemoryAwareResearchService.run_with_initial_answer()`.
+4. The evaluator assesses the answer against the query and context.
+5. Reflection identifies issues; optimization either improves the response or triggers further research through the shared `RouterService` where supported.
+6. The revised response is re-evaluated until the stopping condition or iteration limit is reached.
+7. The notebook displays the final answer and available evaluation/optimization trace.
+
+The exact fields in the graph state and result objects should be read from their dataclass/model definitions and the final notebook. This architecture document does not prescribe additional state fields that are not present in the code.
+
+## 6. Configuration and external dependencies
+
+The workflow may depend on:
+
+- market-data and news providers used by notebook 01;
+- dataset access required by financial-text preparation in notebook 02;
+- SEC EDGAR submissions and filing-document endpoints used by notebook 03;
+- Hugging Face model identifiers, model files, and access credentials when needed;
+- local environment variables documented by `.env.example`.
+
+External data may be missing, delayed, rate-limited, or inconsistent. SEC EDGAR requests require a descriptive `SEC_USER_AGENT` with a real contact address and should be made at reasonable rates. Local model loading may require a first-time download and adequate disk space; CPU generation can be slow. A workflow completing without an exception does not guarantee that every data source returned useful records.
+
+## 7. Observability, evaluation, and reproducibility
+
+For each run, review the query and ticker, source/context availability, initial answer, evaluator output, issues identified, optimization actions, iteration count, final answer, and any memory/trace information emitted by the notebook.
+
+For meaningful baseline-versus-optimized comparisons:
+
+- hold the query, ticker, source context, and evaluation configuration constant;
+- record initial and final evaluation results using the same rubric;
+- review evaluator comments and evidence alongside numerical scores;
+- report missing sources, model fallback use, and execution errors;
+- do not equate more verbose output with improved quality.
+
+Run unit tests from the repository root using the command documented in the README/project setup, for example:
+
+```bash
+uv run pytest -q
 ```
 
-The request is passed to the Planner.
+Unit tests and a complete live notebook execution validate different things. End-to-end execution also depends on credentials, external services, downloaded data, and model availability.
 
----
+## 8. Known limitations and maintenance notes
 
-# 4. Planner
+- The architecture is an academic prototype, not a production trading or financial-advice system.
+- Data quality depends on upstream sources, dates, provider access, and collection success.
+- LLM-based evaluation is itself fallible and must be interpreted alongside evidence and the scoring rubric.
+- The local-model and fallback paths may produce responses of different quality.
+- The final notebook's displayed tables and output fields are the most direct guide to the result schema; update this document whenever those schemas or service handoffs change.
 
-## Responsibility
-
-The Planner converts a high-level research question into executable subtasks.
-
-### Example
-
-Input:
-
-```text
-Analyze NVDA.
-```
-
-Possible plan:
-
-```text
-1. Retrieve historical financial data.
-2. Analyze recent financial performance.
-3. Retrieve recent company-related news.
-4. Analyze news sentiment and key events.
-5. Retrieve relevant SEC/company filings.
-6. Compare current market behavior with historical behavior.
-7. Identify key risks and uncertainties.
-8. Generate an evidence-supported research report.
-9. Evaluate the report.
-10. Perform additional research if required.
-```
-
-The Planner should produce structured tasks rather than directly executing the research.
-
----
-
-# 5. Router
-
-The Router determines which tool or research capability should handle each task.
-
-```text
-                 ┌──────────────┐
-                 │ Research Task│
-                 └──────┬───────┘
-                        │
-                        ▼
-                 ┌──────────────┐
-                 │    Router    │
-                 └──────┬───────┘
-                        │
-          ┌─────────────┼─────────────┐
-          ▼             ▼             ▼
-      Financial        News          SEC
-        Tool           Tool          Tool
-```
-
-### Example routing
-
-| Task                        | Route               |
-| --------------------------- | ------------------- |
-| Historical stock prices     | Financial Tool      |
-| Revenue / earnings          | Financial Tool      |
-| Recent news                 | News Tool           |
-| News sentiment              | NLP / News Pipeline |
-| Annual filing               | SEC Tool            |
-| Relevant document retrieval | Retriever           |
-| Report quality              | Evaluator           |
-
-The Router should remain independent of the underlying implementation of individual tools.
-
----
-
-# 6. Tool Layer
-
-The tool layer provides the agent with external capabilities.
-
-## 6.1 Financial Data Tool
-
-Initial implementation:
-
-```text
-yfinance
-```
-
-Potential information:
-
-* Historical prices
-* Open / high / low / close
-* Trading volume
-* Returns
-* Financial statements
-* Earnings information
-* Company metadata
-
-Example interface:
-
-```python
-get_stock_history(ticker, period)
-get_company_financials(ticker)
-get_market_summary(ticker)
-```
-
----
-
-## 6.2 News Retrieval Tool
-
-Responsible for retrieving relevant financial and company news.
-
-Potential workflow:
-
-```text
-Query
-  ↓
-Retrieve articles
-  ↓
-Normalize text
-  ↓
-Remove duplicates
-  ↓
-Extract metadata
-  ↓
-Pass to NLP pipeline
-```
-
-Important metadata includes:
-
-* Title
-* Publication date
-* Source
-* URL/reference
-* Company/ticker
-* Article content or excerpt
-
----
-
-## 6.3 SEC / Regulatory Tool
-
-The SEC component provides access to public company filings.
-
-Potential documents include:
-
-* 10-K
-* 10-Q
-* 8-K
-* Company filings
-* Other relevant disclosures
-
-The system should retain source metadata so that generated claims can be traced back to evidence.
-
----
-
-# 7. Retrieval Layer
-
-The Retrieval layer connects the agent to relevant textual evidence.
-
-```text
-Documents
-    │
-    ▼
-Preprocessing
-    │
-    ▼
-Chunking
-    │
-    ▼
-Embeddings
-    │
-    ▼
-Vector Index
-    │
-    ▼
-Similarity Search
-    │
-    ▼
-Relevant Context
-```
-
-The initial project can use a financial-news dataset such as **Financial PhraseBank** for controlled NLP experiments and public financial/filing information for research retrieval.
-
----
-
-# 8. Chunking Strategy
-
-Long documents should be divided into manageable chunks before indexing.
-
-Conceptually:
-
-```text
-Original Document
-       │
-       ▼
-┌───────────────────┐
-│ Chunk 1           │
-├───────────────────┤
-│ Chunk 2           │
-├───────────────────┤
-│ Chunk 3           │
-├───────────────────┤
-│ ...               │
-└───────────────────┘
-```
-
-An overlap can be introduced between consecutive chunks when contextual continuity is important.
-
-The chunking configuration should be treated as an experimental parameter rather than a fixed assumption.
-
----
-
-# 9. Prompt Chaining
-
-Prompt chaining decomposes text processing into smaller, controlled operations.
-
-```text
-Retrieved Article
-       │
-       ▼
-Preprocessing
-       │
-       ▼
-Classification
-       │
-       ▼
-Information Extraction
-       │
-       ▼
-Summarization
-       │
-       ▼
-Structured Evidence
-```
-
-### Example
-
-For a financial article:
-
-```text
-Article
-  ↓
-Clean text
-  ↓
-Identify company
-  ↓
-Classify sentiment
-  ↓
-Extract financial events
-  ↓
-Extract risks/opportunities
-  ↓
-Generate concise summary
-```
-
-This approach provides more control than asking a single LLM prompt to perform every operation simultaneously.
-
----
-
-# 10. Agent State
-
-The LangGraph workflow should maintain a shared state object.
-
-A conceptual state could contain:
-
-```python
-state = {
-    "user_query": ...,
-    "ticker": ...,
-    "research_plan": ...,
-    "completed_tasks": ...,
-    "retrieved_documents": ...,
-    "financial_data": ...,
-    "news_data": ...,
-    "filings": ...,
-    "evidence": ...,
-    "draft_report": ...,
-    "evaluation": ...,
-    "revision_count": ...,
-    "memory": ...
-}
-```
-
-The state allows individual nodes to contribute information without requiring tightly coupled implementations.
-
----
-
-# 11. LangGraph Workflow
-
-The orchestration layer can be represented as a graph.
-
-```text
-START
-  │
-  ▼
-Planner
-  │
-  ▼
-Router
-  │
-  ├──────────────► Financial Research
-  │
-  ├──────────────► News Research
-  │
-  └──────────────► SEC Research
-                    │
-                    ▼
-               Retrieval
-                    │
-                    ▼
-              Prompt Chains
-                    │
-                    ▼
-             Report Generator
-                    │
-                    ▼
-                Evaluator
-                    │
-            ┌───────┴────────┐
-            │                │
-          PASS            NEEDS WORK
-            │                │
-            ▼                ▼
-          Memory        Additional Research
-            │                │
-            │                └──────► Retrieval
-            ▼
-           END
-```
-
-This workflow allows the system to move beyond a simple linear chatbot pipeline.
-
----
-
-# 12. Evaluator–Optimizer
-
-The evaluator examines the generated research report.
-
-## Evaluation Dimensions
-
-### Relevance
-
-Does the report answer the original research question?
-
-### Evidence Coverage
-
-Are important claims supported by retrieved evidence?
-
-### Factual Consistency
-
-Does the report remain consistent with the available source material?
-
-### Completeness
-
-Were the requested research dimensions addressed?
-
-### Source Quality
-
-Were appropriate sources used?
-
-### Structure
-
-Is the report organized and understandable?
-
----
-
-## Evaluation Flow
-
-```text
-Generated Report
-       │
-       ▼
-    Evaluator
-       │
-       ├── Quality acceptable ──► Final Report
-       │
-       └── Quality insufficient
-                    │
-                    ▼
-             Identify Gaps
-                    │
-                    ▼
-             Additional Research
-                    │
-                    ▼
-              Revised Report
-                    │
-                    └──────► Evaluator
-```
-
-A maximum iteration count should be established to prevent uncontrolled loops.
-
----
-
-# 13. Memory
-
-Memory allows the system to retain useful information across research activities.
-
-Potential memory content:
-
-* Previously researched companies
-* Previously retrieved evidence
-* Research preferences
-* Prior findings
-* Previous evaluation feedback
-* Reusable summaries
-
-Memory should distinguish between:
-
-```text
-Short-term workflow state
-        +
-Longer-term reusable research context
-```
-
-The project should avoid treating every generated response as permanent knowledge. Memory entries should have appropriate metadata and provenance.
-
----
-
-# 14. Data Flow
-
-The end-to-end data flow is:
-
-```text
-User
- │
- ▼
-Research Question
- │
- ▼
-Planner
- │
- ▼
-Task List
- │
- ▼
-Router
- │
- ├──────────────┐
- ▼              ▼
-Financial      Textual
-Data           Sources
- │              │
- ▼              ▼
-Processing     Retrieval
- │              │
- └──────┬───────┘
-        ▼
-   Evidence Store
-        │
-        ▼
-  Prompt Chaining
-        │
-        ▼
- Report Generation
-        │
-        ▼
-    Evaluation
-        │
-        ▼
- Optimization / Reflection
-        │
-        ▼
-     Memory
-        │
-        ▼
- Final Research Report
-```
-
----
-
-# 15. Repository-to-Architecture Mapping
-
-| Repository Component                     | Architectural Responsibility      |
-| ---------------------------------------- | --------------------------------- |
-| `src/agent/`                             | Agent orchestration and state     |
-| `src/planning/`                          | Task decomposition                |
-| `src/routing/`                           | Dynamic routing                   |
-| `src/tools/`                             | External tool interfaces          |
-| `src/retrieval/`                         | Retrieval and evidence            |
-| `src/chains/`                            | Prompt chaining                   |
-| `src/evaluation_optimizer/`              | Evaluation and optimization       |
-| `src/evaluation_optimizer/memory`        | Persistent/reusable context       |
-| `src/evaluation_optimizer/reflection`    | Reflect and improve reponse       |
-| `tests/`                                 | Unit and integration testing      |
-| `notebooks/`                             | Experiments and demonstrations    |
-| `reports/`                               | Generated/sample research reports |
-
----
-
-# 16. Cohort Ownership
-
-The architecture is intentionally divided into three major workstreams.
-
-## Cohort 1 — Data & Retrieval
-
-### Components
-
-```text
-src/tools/
-src/retrieval/
-src/visualization/
-data/
-```
-
-### Responsibilities
-
-* Financial data ingestion
-* News dataset preparation
-* SEC data preparation
-* Text preprocessing
-* Chunking
-* Retrieval
-* Data quality checks
-* Exploratory analysis
-* Visualization
-
-### Integration Contract
-
-Cohort 1 provides standardized outputs to the agent layer.
-
-Example:
-
-```python
-{
-    "source": "...",
-    "title": "...",
-    "date": "...",
-    "content": "...",
-    "ticker": "...",
-    "metadata": {...}
-}
-```
-
----
-
-# 17. Cohort 2 — Agent & Orchestration
-
-### Components
-
-```text
-src/agent/
-src/planning/
-src/routing/
-src/chains/
-```
-
-### Responsibilities
-
-* Agent state
-* Planner
-* Router
-* LangGraph workflow
-* Tool invocation
-* Prompt chains
-* Error handling
-* Workflow integration
-
-### Integration Contract
-
-Cohort 2 consumes standardized data/tool interfaces and produces structured research context for the evaluation layer.
-
----
-
-# 18. Cohort 3 — Evaluation & Intelligence
-
-### Components
-
-```text
-src/evaluation/
-src/memory/
-reports/
-tests/
-```
-
-### Responsibilities
-
-* Report generation
-* Evaluation criteria
-* Evaluator implementation
-* Reflection loop
-* Memory
-* Quality metrics
-* End-to-end testing
-* Final validation
-
----
-
-# 19. Cross-Cohort Integration
-
-The three cohorts should integrate through clearly defined interfaces.
-
-```text
-             ┌──────────────────────┐
-             │      Cohort 1        │
-             │ Data & Retrieval     │
-             └──────────┬───────────┘
-                        │
-                  Data Contracts
-                        │
-                        ▼
-             ┌──────────────────────┐
-             │      Cohort 2        │
-             │ Agent & Orchestration│
-             └──────────┬───────────┘
-                        │
-                 Research Output
-                        │
-                        ▼
-             ┌──────────────────────┐
-             │      Cohort 3        │
-             │ Evaluation & Memory │
-             └──────────────────────┘
-```
-
-Each cohort should contribute:
-
-* Source code
-* Tests
-* Documentation
-* Notebook/experiment evidence
-* Git commits
-* Integration support
-* Final presentation material
-
----
-
-# 20. Error Handling
-
-The agent should explicitly handle common failure conditions.
-
-### Missing Financial Data
-
-```text
-Tool Failure
-    ↓
-Retry / Alternative Query
-    ↓
-Return structured error
-    ↓
-Continue remaining research
-```
-
-### No Relevant News
-
-The system should report that no sufficiently relevant information was retrieved rather than fabricate evidence.
-
-### Retrieval Failure
-
-The system should record the failure and avoid generating unsupported claims.
-
-### LLM Failure
-
-The orchestration layer should support controlled retries and terminate gracefully after a configured retry limit.
-
----
-
-# 21. Source Provenance
-
-Every important retrieved item should retain provenance.
-
-Recommended metadata:
-
-```python
-{
-    "source_type": "SEC",
-    "source_name": "...",
-    "source_url": "...",
-    "publication_date": "...",
-    "retrieval_date": "...",
-    "ticker": "NVDA",
-    "document_id": "...",
-    "chunk_id": "..."
-}
-```
-
-This enables the final report to connect generated findings to their supporting evidence.
-
----
-
-# 22. Security and Reliability Considerations
-
-The project is academic and should avoid treating generated output as authoritative financial advice.
-
-Important safeguards include:
-
-* Do not fabricate missing data.
-* Preserve source metadata.
-* Distinguish retrieved facts from generated interpretation.
-* Identify uncertainty.
-* Avoid unsupported financial claims.
-* Validate numerical calculations.
-* Limit autonomous iteration.
-* Log tool calls and major workflow decisions where practical.
-
----
-
-# 23. Testing Strategy
-
-Testing should occur at three levels.
-
-## Unit Testing
-
-Examples:
-
-```text
-Planner
-Router
-Financial tools
-Chunking
-Retrieval
-Evaluator
-```
-
-## Integration Testing
-
-Validate:
-
-```text
-Planner → Router → Tools → Retrieval → Report
-```
-
-## End-to-End Testing
-
-Example:
-
-```text
-User Query
-    ↓
-Complete Agent Workflow
-    ↓
-Final Research Report
-```
-
-The end-to-end test should verify that the system can complete the complete research cycle without manual intervention beyond the initial request.
-
----
-
-# 24. Observability
-
-The system should log major workflow events.
-
-Example:
-
-```text
-[PLANNER] Research plan generated
-[ROUTER] Financial task → FinancialTool
-[ROUTER] News task → NewsTool
-[RETRIEVER] 8 relevant documents retrieved
-[CHAIN] Sentiment analysis completed
-[REPORT] Initial report generated
-[EVALUATOR] Evidence coverage below threshold
-[OPTIMIZER] Additional SEC research requested
-[REPORT] Report revised
-[EVALUATOR] Final evaluation completed
-```
-
-This makes the agent's behavior easier to demonstrate and debug.
-
----
-
-# 25. Future Extensions
-
-The initial implementation can be extended with:
-
-* Additional financial data providers
-* More sophisticated vector databases
-* Hybrid keyword + semantic retrieval
-* Reranking models
-* Multi-agent collaboration
-* Portfolio-level analysis
-* Macro-economic indicators
-* More advanced financial NLP
-* Automated experiment tracking
-* Human-in-the-loop review
-* Improved long-term memory
-* Additional evaluation metrics
-
-These extensions are outside the minimum three-week implementation unless time permits.
-
----
-
-# 26. Target End State
-
-The completed system should demonstrate the following agentic loop:
-
-```text
-        ┌─────────────────────────────┐
-        │       Research Request      │
-        └──────────────┬──────────────┘
-                       ▼
-                ┌─────────────┐
-                │    PLAN     │
-                └──────┬──────┘
-                       ▼
-                ┌─────────────┐
-                │    ROUTE    │
-                └──────┬──────┘
-                       ▼
-                ┌─────────────┐
-                │   RESEARCH  │
-                └──────┬──────┘
-                       ▼
-                ┌─────────────┐
-                │  SYNTHESIZE │
-                └──────┬──────┘
-                       ▼
-                ┌─────────────┐
-                │   EVALUATE  │
-                └──────┬──────┘
-                       │
-              ┌────────┴────────┐
-              │                 │
-           Improve             Pass
-              │                 │
-              ▼                 ▼
-          Research          ┌─────────┐
-              │             │ MEMORY  │
-              └────────────►└────┬────┘
-                                  ▼
-                           FINAL REPORT
-```
-
-The key objective is not merely to create a chatbot that generates financial text, but to demonstrate a **structured autonomous research workflow** combining planning, tool use, retrieval, reasoning, evaluation, optimization, and memory.
