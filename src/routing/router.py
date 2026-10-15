@@ -16,7 +16,6 @@ class RouterService:
 
     def route(self, query: str, context: str, system_context: str = None) -> str:
         """Generate the initial response from the supplied context."""
-        print(f"System contex exist? {system_context!=None}")
         if not context.strip():
             return f"No retrieved evidence is available to answer: {query}"
         if self._answer_generator is not None:
