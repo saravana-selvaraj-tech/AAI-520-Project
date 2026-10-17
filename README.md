@@ -1,278 +1,410 @@
 # AAI-520: Autonomous Investment Research Agent
 
-The **Autonomous Investment Research Agent** is an end-to-end academic project that explores how agentic AI can gather financial information, research a publicly traded company, produce an evidence-grounded report, and improve the response through evaluation, reflection, and optimization.
+The **Autonomous Investment Research Agent** is an academic research
+workflow that collects market, news, and SEC filing evidence; plans
+research tasks; processes evidence; generates an initial report;
+evaluates the report; reflects on weaknesses; performs bounded
+optimization; and persists selected research memory for later runs.
 
-The project brings together data collection, financial-text preparation, research planning and routing, answer generation, evaluation, and memory in one cohesive workflow. The notebooks provide a reproducible path from source data to a final research response and its evaluation results.
-
-> **Disclaimer:** This project is intended for academic and experimental use. Its output is not financial advice or a recommendation to buy, sell, or hold a security. Verify material claims against reliable primary sources before relying on them.
+> **Disclaimer:** This prototype is for academic experimentation, not
+> financial advice or a buy/sell/hold recommendation. Verify material
+> claims against primary sources and current data.
 
 ## Project workflow at a glance
 
-1. Collect market history and company-related news.
-2. Prepare a financial-sentiment text dataset for separate text-analysis experiments.
-3. Collect SEC EDGAR filing evidence for the selected ticker.
-4. Run the integrated investment research agent, which loads the market, news, and filing artifacts, plans research, processes evidence, generates an initial answer, evaluates it, reflects on issues, and optimizes within configured limits.
-5. Inspect the final response and evaluation/memory trace to understand both the result and the quality checks applied.
+1.  Collect market history and company-related news.
+2.  Optionally prepare the separate financial-sentiment text dataset for
+    text-analysis experiments.
+3.  Collect SEC EDGAR filing evidence.
+4.  Run the integrated research notebook: planning → provider/specialist
+    routing → evidence processing → initial answer → evaluation →
+    reflection/optimization/re-evaluation → memory persistence.
+5.  Inspect the notebook's rubric evidence tables, evaluation trace,
+    memory trace, score visualization, and saved question reports.
 
-**Integration boundary:** the integrated notebook currently consumes the market CSV, news JSON, and SEC filings JSON. Notebook 02 writes a cleaned sentiment CSV and creates BoW/TF-IDF matrices in memory, but the current integrated notebook does not load those artifacts. Its prompt-chain preprocessing is performed separately by `process_evidence()` inside `AgentGraph.run()`.
+**Integration boundary:** The integrated notebook reads
+`data/processed/market_<TICKER>.csv`, `news_<TICKER>.json`, and
+`filings_<TICKER>.json`. Notebook 02 saves
+`financial_sentiment_clean.csv` and creates BoW/TF-IDF matrices for a
+separate experiment; the current integrated notebook does not load those
+artifacts. Its live prompt-chain processing is
+`chains.preprocessing.process_evidence()` inside `AgentGraph.run()`.
 
-The agent is designed to make the research process more traceable: a generated answer should be considered alongside the evidence available to it, evaluation findings, and any optimization steps—not in isolation.
+## Technology and dependencies
 
-## Technology and required libraries
-
-Use the project's dependency definitions as the source of truth. The repository uses `pyproject.toml` and `uv.lock` to describe and lock its Python environment.
-
-The main library groups used by the workflow include:
-
-| Purpose | Libraries / tools |
-|---|---|
-| Python environment and dependencies | Python 3.11+, `uv` |
-| Notebook execution | Jupyter / IPython |
-| Market data collection | `yfinance`, `pandas`, `numpy` |
-| News collection | `requests` and the configured NewsAPI integration |
-| Financial text and data preparation | `pandas`, `numpy`, `scikit-learn` and the dataset tooling used by the notebook |
-| Agent workflow and orchestration | The agent graph, planning, routing, and service components implemented in `src/` |
-| Local language-model inference | `transformers`, `torch`, Hugging Face model files |
-| Environment configuration | `python-dotenv` |
-| Testing and code quality | `pytest`; Ruff if included in the development environment |
-
-Install the full declared project environment rather than installing these libraries individually. This ensures that transitive dependencies and compatible versions are resolved together.
+Use `pyproject.toml` and `uv.lock` as the source of truth for dependency
+versions. The workflow uses Python, Jupyter/IPython, pandas, requests,
+yfinance, python-dotenv, scikit-learn, KaggleHub, PyTorch/Transformers
+for local Qwen generation, and the configured evaluator SDK (`openai` or
+`groq`). SEC retrieval uses the SEC EDGAR public endpoints through
+`NotebookResearchProvider`.
 
 ## Setup
 
-### 1. Clone the repository
+### 1. Install the environment
 
-```bash
-git clone https://github.com/saravana-selvaraj-tech/AAI-520-Project.git
-cd AAI-520-Project
-```
-
-### 2. Install the project dependencies
-
-Install [`uv`](https://docs.astral.sh/uv/) if it is not already available, then run:
-
-```bash
+``` bash
 uv sync
 ```
 
-This creates or updates the project's managed Python environment using `pyproject.toml` and `uv.lock`.
+Use the project's Python environment as the notebook kernel. Notebook 02
+also checks that `uv` is available in the active environment because it
+installs its notebook-specific dependencies.
 
-If you use Jupyter through an IDE, select the Python interpreter/environment created for this project as the notebook kernel.
+### 2. Configure `.env`
 
-### 3. Create and configure `.env`
+Copy `.env.example` to `.env` in the project root and populate only the
+values needed for the run. Keep `.env` untracked and never commit
+secrets.
 
-Copy the checked-in `.env.example` template to a local `.env` file in the repository root. Do not create `.env` from scratch: the template documents the configuration names expected by the current implementation.
+  -----------------------------------------------------------------------
+  Variable                            Purpose / current behavior
+  ----------------------------------- -----------------------------------
+  `STOCK_TICKER`                      Selected ticker, written by
+                                      notebook 01 and read by later
+                                      notebooks.
 
-**Windows PowerShell**
+  `COMPANY_NAME`                      Company name resolved from Yahoo
+                                      Finance by notebook 01.
 
-```powershell
-Copy-Item .env.example .env
-```
+  `DATA_PERIOD`                       Yahoo Finance history period;
+                                      notebook 01 defaults to `1y`.
 
-**macOS / Linux**
+  `NEWS_API_KEY`                      Required by notebook 01 to query
+                                      NewsAPI.
 
-```bash
-cp .env.example .env
-```
+  `SEC_USER_AGENT`                    Descriptive SEC request User-Agent
+                                      including a real contact address.
 
-Open `.env` and replace the placeholders with the credentials and values required for the data sources and model configuration you intend to use.
+  `SEC_MAX_FILINGS`                   Maximum filing count requested by
+                                      notebook 03; defaults to `8` there.
 
-#### API keys and configuration values
+  `HF_MODEL`                          Local answer-generation model;
+                                      defaults to
+                                      `Qwen/Qwen2.5-0.5B-Instruct`.
 
-The collection and research workflow may use the following settings, depending on the active code path:
+  `OPENAI_API_KEY`                    Selects the OpenAI evaluator path
+                                      in the integration notebook when
+                                      present.
 
-| Variable | Purpose | When it is required |
-|---|---|---|
-| `NEWS_API_KEY` | Authenticates requests to NewsAPI for news collection | Required to collect news through NewsAPI |
-| `KAGGLE_API_TOKEN` | Authenticates Kaggle dataset access where the financial-text notebook uses Kaggle | Required only if that dataset is downloaded through an authenticated Kaggle workflow |
-| `HF_TOKEN` | Hugging Face access token | Usually optional for a public model; needed if the selected model or resource requires authentication |
-| `HF_MODEL` | Hugging Face model identifier used for answer generation | Set to the intended generation model; the example configuration has used `Qwen/Qwen2.5-0.5B-Instruct` |
-| `GROQ_API_KEY` | Authenticates evaluator-model requests through Groq | Required when Groq is selected as the evaluator provider |
-| `OPENAI_API_KEY` | Authenticates evaluator-model requests through OpenAI | Required when OpenAI is selected as the evaluator provider |
-| `EVALUATOR_MODEL` | Model identifier used by the LLM-as-a-Judge evaluator | Defaults to `gpt-5.4-mini`; override it when selecting another supported model, including the demonstrated Groq model `openai/gpt-oss-120b` |
-| `STOCK_TICKER` | Company ticker to research | Set to the ticker you want to analyze; for example, `AAPL` |
-| `DATA_PERIOD` | Historical market-data period, where consumed by the collection code | Set to a period supported by the configured data provider; for example, `1y` |
-| `COMPANY_NAME` | Company name associated with the ticker, where consumed by the workflow | Set to the matching company name; for example, `Apple Inc.` |
-| `SEC_USER_AGENT` | Descriptive user-agent string sent with SEC EDGAR requests | Set an application name and a real contact address before collecting filings |
-| `SEC_MAX_FILINGS` | Maximum number of filing records requested by the collection adapter | Optional; defaults to `8` in the filings notebook |
+  `GROQ_API_KEY`                      Selects the Groq evaluator path
+                                      when the OpenAI key is absent.
 
-**Important:** This table describes the variables known from the project workflow; it is not a substitute for the current `.env.example`. Before running the notebooks, compare your `.env` with `.env.example` and set every value marked as required by that template and the relevant notebook. Do not add variable names to `.env` merely because they appear in this README if they are not used by the checked-out code.
+  `EVALUATOR_MODEL`                   Evaluator model override.
+                                      Integration defaults:
+                                      `gpt-5.4-mini` for OpenAI and
+                                      `openai/gpt-oss-120b` for Groq.
 
-Keep real credentials only in your local `.env`. Never commit API keys, access tokens, passwords, or other secrets to GitHub. The `.env.example` file should contain placeholders, not real credentials.
+  `HF_TOKEN`                          Relevant to gated/private Hugging
+                                      Face resources and the source's
+                                      Hugging Face evaluator option; the
+                                      current integration notebook's
+                                      active evaluator selection is
+                                      OpenAI/Groq.
 
-## Centralized configuration and logging
+  `RESEARCH_MAX_EVIDENCE_RECORDS`     Caps evidence records retained by
+                                      the router; default `12`.
 
-### Configuration
+  `RESEARCH_MAX_EVIDENCE_CHARS`       Caps characters retained per
+                                      evidence record; default `8000`.
 
-The project uses environment-based configuration so that credentials and run-specific settings can be changed without editing application logic or notebook source code.
+  `RESEARCH_MAX_NEWS_RECORDS`         Caps news records used by the
+                                      provider; default `12`.
 
-- `.env.example` documents the expected environment variables and safe example values.
-- `.env` holds local values for the current machine and should remain untracked.
-- Configuration is consumed by the relevant application services and notebook workflow.
-- Model selection, ticker, data period, and other supported run settings should be changed through the project's configuration mechanism rather than duplicated as hard-coded values across modules.
+  `RESEARCH_MAX_SEC_FILINGS`          Caps filing records used by the
+                                      router; default `4`.
 
-For evaluator configuration, provide only the key for the selected provider: `GROQ_API_KEY` for Groq or `OPENAI_API_KEY` for OpenAI. The Hugging Face evaluator path may require `HF_TOKEN` depending on the selected model and access requirements. `EVALUATOR_MODEL` defaults to `gpt-5.4-mini`; set it explicitly when using a different model, such as `openai/gpt-oss-120b` for the Groq demonstration.
+  `RESEARCH_MAX_RISK_FINDINGS`        Caps heuristic risk findings;
+                                      default `20`.
 
-When changing a setting, confirm that the relevant code path actually reads it. A variable being present in `.env` does not automatically mean every notebook or service uses it.
+  `ANSWER_MAX_NEW_TOKENS`             Use this as the intended
+                                      generation-budget setting only if
+                                      the calling code wires it through;
+                                      `QwenAnswerGenerator` itself
+                                      defaults to `512` and accepts a
+                                      constructor argument.
 
-### Logging
+  `ANSWER_MAX_INPUT_CHARS`            Use this as the intended
+                                      input-limit setting only if the
+                                      calling code wires it through;
+                                      `QwenAnswerGenerator` itself
+                                      defaults to `6000` and accepts a
+                                      constructor argument.
+  -----------------------------------------------------------------------
 
-Logging supports tracing the research and evaluation workflow, diagnosing failures, and understanding how a run progressed. It is intended to make key workflow events observable without relying exclusively on notebook cell output.
-
-When reviewing logs, look for:
-
-- which workflow stage started or completed;
-- data-provider, model-loading, or configuration failures;
-- routing, research, evaluation, reflection, and optimization activity;
-- iteration or termination decisions when emitted by the active workflow;
-- exception details needed to diagnose a failed run.
-
-Log levels determine how much detail is emitted. Use the configured log-level setting if the implementation exposes one. Avoid logging secrets, API tokens, or other sensitive values. The exact log destination, filename, format, and supported level names are determined by the checked-out logging/configuration implementation; consult the source configuration before assuming that logs are written to a particular file.
+The integration notebook currently chooses OpenAI if `OPENAI_API_KEY`
+exists, otherwise Groq if `GROQ_API_KEY` exists; if neither exists, it
+stops with an environment error. The Hugging Face evaluator option
+exists in the evaluator class, but it is not selected by the active
+notebook branch as currently written. Do not assume a variable is
+effective unless the executed code reads it.
 
 ## Notebook execution order
 
-The repository contains three preparation/collection notebooks plus the integrated research notebook. Run the relevant notebooks from the repository root, execute cells sequentially, and inspect outputs before proceeding. **The financial-text preparation notebook is a complementary text-analysis workflow; the current integrated research notebook does not directly load its cleaned CSV or in-memory vectorizers.**
+Run cells sequentially and inspect record counts, provider errors, and
+saved artifacts. The integration notebook should be run from a clean
+kernel for a final demonstration.
 
-### 1. Market and news collection
+### 1. Market and news collection --- `notebooks/01_market_news_collection.ipynb`
 
-[`notebooks/01_market_news_collection.ipynb`](https://github.com/saravana-selvaraj-tech/AAI-520-Project/blob/main/notebooks/01_market_news_collection.ipynb)
+Prompts for a ticker, validates ticker syntax, verifies that Yahoo
+Finance returns market history, resolves the company name, and writes
+`STOCK_TICKER` and `COMPANY_NAME` into `.env`. It saves:
 
-**Purpose:** Collect market-history data and company/news information for the configured ticker and period.
+-   `data/processed/market_<TICKER>.csv`
+-   `data/processed/news_<TICKER>.json`
 
-**Expected handoff:** The current integration notebook looks for `data/processed/market_<TICKER>.csv` and `data/processed/news_<TICKER>.json`.
+Evidence to capture: selected ticker/company, requested period, market
+rows, news rows, successful output paths, and any provider warnings.
+`NEWS_API_KEY` is required.
 
-Inspect the collection status, record counts, dates, warnings, and the files actually written. A successful cell does not guarantee that every provider returned complete data.
+### 2. Financial text preparation --- `notebooks/02_financial_text_preparation.ipynb`
 
-### 2. Financial text preparation
+Downloads `sbhatti/financial-sentiment-analysis` with KaggleHub;
+validates `Sentence` and `Sentiment`; removes missing/duplicate rows;
+cleans text; encodes negative/neutral/positive as `-1/0/1`; and saves
+`data/processed/financial_sentiment_clean.csv`. It creates a stratified
+80/20 train/test split with `random_state=42`, then creates
+CountVectorizer BoW and TF-IDF unigram/bigram matrices capped at 5,000
+features.
 
-[`notebooks/02_financial_text_preparation.ipynb`](https://github.com/saravana-selvaraj-tech/AAI-520-Project/blob/main/notebooks/02_financial_text_preparation.ipynb)
+Evidence to capture: loaded and cleaned row counts, label validity,
+output path, train/test dimensions for both vectorizers. These are
+text-preparation artifacts, **not** live inputs to the integrated agent
+in the current version.
 
-**Purpose:** Prepare the `sbhatti/financial-sentiment-analysis` dataset for reproducible financial-text experiments. The notebook downloads the dataset with `kagglehub`, validates the `Sentence` and `Sentiment` columns, removes rows with missing values and duplicate records, normalizes the three sentiment labels, and cleans the text.
+### 3. SEC EDGAR filings --- `notebooks/03_filings_collection.ipynb`
 
-**Processing and outputs:**
+Uses `NotebookResearchProvider.filings()` to resolve ticker/CIK and
+retrieve recent annual, quarterly, current, and selected foreign-issuer
+filing forms. Saves `data/processed/filings_<TICKER>.json` with ticker,
+collection timestamp, source, and serialized evidence records. Records
+retain filing/source metadata, dates, identifiers, URLs, and bounded
+text excerpts.
 
-- Writes cleaned records to `data/processed/financial_sentiment_clean.csv`, including `clean_text` and `label_encoded` (`negative = -1`, `neutral = 0`, `positive = 1`).
-- Uses a stratified 80/20 train/test split with `random_state=42`.
-- Builds unigram/bigram CountVectorizer (Bag-of-Words) and TF-IDF representations, each capped at 5,000 features. The fitted vectorizers and matrices remain in notebook memory; the current notebook does not persist them.
-- Installs `kagglehub`, `pandas`, and `scikit-learn` into the active kernel environment through `uv`, so `uv` must be available.
+Evidence to capture: returned filing count, titles, filing dates,
+identifiers, URLs, content lengths, output path, and empty-result
+warnings. Set a valid `SEC_USER_AGENT` with a real contact address.
 
-Inspect the dataset load count, cleaned record count, output path, and train/test feature shapes. Kaggle access or download problems should be resolved before treating the preparation run as successful.
+### 4. Integrated research --- `notebooks/AAI520_Investment_Research_Agent.ipynb`
 
-**Integration boundary:** The current `AAI520_Investment_Research_Agent.ipynb` does **not** read `financial_sentiment_clean.csv` or consume the notebook's BoW/TF-IDF matrices. It uses `AgentGraph`'s `process_evidence()` path to preprocess the market/news/filing evidence retrieved for the specific research question. Therefore, this notebook currently supplies a separate prepared text dataset for analysis/experimentation, rather than a direct input to the integrated research run.
+Loads market/news/filing artifacts into `NotebookResearchProvider`,
+executes `AgentGraph`, displays the plan and route trace, exposes the
+prompt-chain stage outputs, generates an initial report, hands that
+report and its context to
+`MemoryAwareResearchService.run_with_initial_answer()`, and executes up
+to five optional follow-up questions through the memory-aware question
+workflow.
 
-### 3. SEC EDGAR filing collection
+The archive may also contain
+`AAI520_Investment_Research_Agent_rubric_aligned_v2.ipynb`, an alternate
+rubric-focused notebook. Treat `AAI520_Investment_Research_Agent.ipynb`
+as the canonical run unless the team deliberately chooses the alternate;
+running both is not an additional workflow stage.
 
-[`notebooks/03_filings_collection.ipynb`](https://github.com/saravana-selvaraj-tech/AAI-520-Project/blob/main/notebooks/03_filings_collection.ipynb)
+## Rubric evidence: what to capture from the notebooks
 
-**Purpose:** Collect company filing evidence from SEC EDGAR for the configured ticker. The notebook uses `NotebookResearchProvider.filings()` to resolve the ticker to a CIK, read the SEC submissions index, and retrieve primary documents for recent annual, quarterly, current, and selected foreign-issuer filing types. The query can be adjusted to restrict form types such as `10-K` or `10-Q`.
+The integration notebook includes dedicated rubric-evidence sections.
+The following evidence is **runtime evidence**: it should be captured
+from a successful execution, not inferred from the existence of source
+classes or stale saved cell outputs.
 
-**Saved artifact:** `data/processed/filings_<TICKER>.json`. Each serialized `EvidenceRecord` preserves filing/source metadata such as the SEC source, title, filing date, ticker, canonical URL, accession/document identifier, and a bounded plain-text excerpt. The JSON also records the ticker, collection timestamp, and source label.
+  --------------------------------------------------------------------------------------------------------
+  Rubric criterion        Notebook evidence to    Where / key fields
+                          capture                 
+  ----------------------- ----------------------- --------------------------------------------------------
+  Prompt chaining: Ingest Counts for market,      Section 7, `ingest_counts`; stage table row `1. Ingest`
+                          news, and SEC filing    
+                          records                 
 
-**Expected handoff:** The integration notebook loads the `filings` array from this JSON, validates each row as an `EvidenceRecord`, and passes the resulting list to `NotebookResearchProvider` alongside market and news data.
+  Prompt chaining:        Normalized text preview Section 7, `processed_evidence`;
+  Preprocess              and record output       `stage_outputs.preprocess`
+                          counts                  
 
-Set `SEC_USER_AGENT` to a descriptive application name plus a real contact address, use reasonable request rates, and inspect source URLs before relying on filing content. Check the ticker/CIK mapping, filing counts, output path, and empty-result/provider warnings. The integrated research path requires this artifact in the current notebook version.
+  Prompt chaining:        Sentiment labels and    Section 7, `stage_outputs.classify`; `sentiment_counts`
+  Classify                label counts            
 
-### 4. Integrated investment research agent
+  Prompt chaining:        Candidate               Section 7, `extracted_facts`, `extracted_preview`
+  Extract                 sentences/facts with    
+                          source attribution      
 
-[`notebooks/AAI520_Investment_Research_Agent.ipynb`](https://github.com/saravana-selvaraj-tech/AAI-520-Project/blob/main/notebooks/AAI520_Investment_Research_Agent.ipynb)
+  Prompt chaining:        Extractive summary per  Section 7, `stage_outputs.summarize`; final
+  Summarize               record and initial      synthesis/report length
+                          synthesis output        
 
-**Purpose:** Run the research graph and the evaluator–optimizer workflow. The notebook loads the market, news, and SEC filing artifacts; creates a `NotebookResearchProvider`; invokes `AgentGraph`; inspects the research plan and processed evidence; then passes the initial answer, context, and the graph-owned `RouterService` into the evaluation/optimization workflow.
+  Research planning       Planned task            Section 6, `plan_df`; task types include
+                          descriptions, task      financial/market, news, SEC, risk, report, evaluation
+                          types and statuses      when selected by planner logic
 
-**What to inspect after execution:**
+  Specialist routing      Selected specialist,    Section 5, `routing_trace`; `generation_trace` for
+                          provider method,        synthesis route/model/status
+                          status, result/evidence 
+                          counts and errors       
 
-- the query and company/ticker used for the run;
-- retrieved evidence and `processed_evidence` summaries;
-- the initial generated report and final response;
-- evaluation scores/rationales, identified issues, and optimization actions;
-- iteration count, termination details, and memory IDs/trace information where emitted.
+  Dynamic tool/data use   Actual `financial`,     Section 5 routing trace; provider method and status;
+                          `news`, and/or          review `Executing task type` log output
+                          `filings` provider      
+                          calls, local risk       
+                          analysis, context       
+                          construction, result    
+                          counts                  
 
-The current integration notebook's explicit input files are the market, news, and filing artifacts above. It does not directly consume the cleaned financial sentiment CSV from notebook 02. If that dataset is intended to influence the live research answer, a code change is needed to load it and deliberately integrate its records/features into the provider or evidence-processing path; documentation alone does not create that connection.
+  Evaluator--Optimizer    Initial and final       Sections 12--13; `trace_rows`; initial/final evaluation
+                          scores, pass flags,     tables
+                          rationales, issues,     
+                          optimization actions,   
+                          iterations              
 
-## How to read the final notebook result
+  Self-reflection         Identified issues and   Section 13; `identified_issues`, `optimization_actions`
+                          recommended             
+                          optimization actions    
+                          derived from evaluation 
 
-The final notebook should be read as both a **research report** and a **record of how the report was evaluated and improved**. Use the following sequence when reviewing its output.
+  Re-evaluation /         Initial-vs-final metric Section 17 visualization; traceability table in Section
+  improvement             comparison and plotted  16
+                          scores for each         
+                          question                
 
-### 1. Read the final answer in context
+  Learning across runs    Retrieved/applied       Sections 14--15; memory trace and cross-run persistence
+                          memory IDs; persisted   check
+                          memory file and         
+                          successful reload       
+                          through a fresh         
+                          repository object       
 
-Start with the research question, selected company/ticker, and the final generated response. Check whether the response addresses the requested question and whether its conclusions are supported by the retrieved context. Treat missing, stale, or conflicting source data as a limitation, not as proof that a claim is true.
+  Final user-facing       One Markdown report per Section 15;
+  output                  processed question,     `reports/research_report_<TICKER>_q<N>_<timestamp>.md`
+                          containing question and 
+                          final response          
+  --------------------------------------------------------------------------------------------------------
 
-### 2. Check the evidence
+### The five evaluator metrics
 
-Review the retrieved context, cited records, source descriptions, and relevant dates when they are displayed. Ask:
+The active integration notebook configures five evaluators. Each
+`EvaluationResult` has a normalized score in the range **0.0--1.0**, a
+`passed` flag, a rationale, and zero or more structured issues. Inspect
+both the initial and final evaluation for every question.
 
-- Does the evidence relate directly to the question?
-- Does it support the material claims in the answer?
-- Is the evidence sufficiently current for the claim being made?
-- Are important risks, uncertainties, or gaps acknowledged?
+  -----------------------------------------------------------------------
+  Metric                  What the evaluator      Notebook evidence
+                          checks                  
+  ----------------------- ----------------------- -----------------------
+  `relevance`             Does the response       Initial/final
+                          directly answer the     evaluation tables and
+                          requested question and  rationale in Section 13
+                          stay on scope?          
 
-A fluent answer can still be unsupported. If the notebook does not expose a source for a claim, do not assume that claim has been verified.
+  `groundedness`          Are important claims    Initial/final score,
+                          supported by the        pass flag, rationale
+                          supplied context,       and issues in Section
+                          without invented        13
+                          unsupported claims?     
 
-### 3. Interpret evaluation dimensions
+  `accuracy`              Are facts, numbers,     Initial/final score and
+                          calculations and        rationale in Section 13
+                          conclusions consistent  
+                          with the supplied       
+                          evidence?               
 
-The evaluation output may contain dimensions such as:
+  `temporal_validity`     Are the evidence dates  Initial/final score and
+                          and reporting periods   rationale in Section
+                          appropriate for the     13; compare evidence
+                          question, especially    publication dates
+                          when it asks for        
+                          latest/current data?    
 
-| Dimension | How to interpret it |
-|---|---|
-| Retrieval relevance | Whether the retrieved material is useful for the question |
-| Answer relevance | Whether the answer responds to the question asked |
-| Groundedness | Whether claims are supported by the supplied evidence |
-| Answerability handling | Whether the answer appropriately handles missing or insufficient evidence |
-| Evaluator comments / issues | The explanation of weaknesses, missing information, or required corrections |
+  `clarity`               Is the answer           Initial/final score and
+                          organized, precise,     rationale in Section 13
+                          readable and            
+                          unambiguous?            
+  -----------------------------------------------------------------------
 
-Use the scale and criteria printed by the notebook or defined in the evaluator implementation. If a rubric uses a small ordinal scale (for example, 0–2), interpret the values according to that rubric; do not compare them directly with scores from a different scale.
+A score is an LLM-as-a-Judge rubric signal, not a probability of
+correctness. Do not claim that optimization improved quality unless the
+initial/final scores, rationales, issues, and answer differences support
+that conclusion. If the optimizer stops without changing the answer,
+record that fact rather than implying an improvement.
 
-### 4. Compare initial and optimized answers
+### What counts as evidence for each agentic function
 
-Where both are shown, compare the initial response with the final response and examine the evaluation trace:
+-   **Plans:** show the actual `plan_df` rows and their task statuses.
+    The current `Planner` is deterministic and keyword-based; do not
+    describe it as an unconstrained LLM planner.
+-   **Uses tools dynamically:** show the emitted `routing_trace` with
+    specialist/provider method and results. Merely printing public
+    method names or constructing a provider is not enough.
+-   **Self-reflects:** show evaluator rationales, identified issues, and
+    optimization actions linked to the revised answer and re-evaluation.
+-   **Learns across runs:** show retrieved/applied memory IDs and the
+    disk reload check. A memory file existing proves persistence, not
+    that a separate process reused a previous memory. For strong
+    cross-run evidence, restart the kernel and run a related question,
+    then compare retrieved IDs with IDs persisted by the previous run.
 
-- Which issues were identified?
-- Were they categorized and prioritized appropriately?
-- Did optimization add relevant evidence, correct a weakness, or improve the handling of uncertainty?
-- Did the relevant evaluation scores improve, remain unchanged, or decline?
-- How many optimization/re-evaluation iterations occurred, and why did the workflow stop?
+### Prompt-chain interpretation and limitations
 
-A higher score is useful only when the scoring rubric is meaningful and the improvement is supported by the output. A longer answer or a more confident tone is not, by itself, evidence of improvement.
+The integration code runs `preprocess_text`, `classify_text`,
+`extract_facts`, and `summarize_text` over a bounded number of evidence
+records. Classification is a simple keyword-count sentiment heuristic;
+extraction returns **candidate sentences**, not independently verified
+facts; summarization is extractive/truncation-based. These stages make
+transformations inspectable, but they are not a substitute for source
+validation or financial analysis APIs. Ingestion is the
+market/news/filings artifact handoff; final synthesis is generated after
+evidence/context construction.
 
-### 5. Draw a balanced conclusion
+## Retrieval and Recall@k status
 
-A strong run should produce a relevant, evidence-supported answer and a trace that makes weaknesses and revisions understandable. If the final response remains weak on groundedness, relevance, or answerability, report that limitation rather than treating completion of the workflow as proof of correctness.
+The current uploaded `src/` and integration notebook do not show a
+dedicated top-*k* retrieval-ranking stage or a measured Recall@k
+calculation with relevance ground truth. Do **not** claim a measured
+Recall@k result or an implemented Recall@k selection strategy from this
+snapshot. If Recall@k is a graded requirement, implement and test
+retrieval ranking, define relevant-item ground truth, and expose the
+selected top-*k* evidence and calculation in the notebook.
 
-For an academic comparison, keep the research query, ticker, source context, and evaluation settings consistent between baseline and optimized runs. Record the initial and final scores, issues found, optimization steps, iteration count, and any visible changes in evidence coverage or answer quality.
+## Saved artifacts
 
-## Troubleshooting
+-   `data/processed/market_<TICKER>.csv` --- market history.
+-   `data/processed/news_<TICKER>.json` --- news articles.
+-   `data/processed/financial_sentiment_clean.csv` --- cleaned financial
+    sentiment dataset (separate workflow).
+-   `data/processed/filings_<TICKER>.json` --- SEC filing records.
+-   `data/memory/memory_store.pkl` --- disk-backed memory repository.
+-   `reports/research_report_<TICKER>_q<N>_<timestamp>.md` --- one
+    Markdown report per processed question, including the question and
+    final response.
 
-- **Missing API key:** Recheck `.env`, variable spelling, and whether the notebook expects the key in the current environment. Restart the kernel after environment changes if needed.
-- **Empty news or market results:** Check the ticker, requested period, provider availability, rate limits, and credentials.
-- **Dataset download/authentication error:** Check the data source and required access token; do not assume that a failed download produced a valid dataset.
-- **Hugging Face model loading/download problem:** Verify the model identifier, available disk space, dependencies, and access requirements. The first model load may take time.
-- **Slow CPU generation:** Small local models can still be slow on CPU. Reduce unnecessary generation length or repeated model initialization where supported by the implementation.
-- **Notebook works only when run out of order:** Restart the kernel and run notebooks/cells sequentially; verify that expected intermediate artifacts were created.
-- **Unexpected evaluator score:** Inspect the scoring rubric, evaluator comments, supplied context, and issue details before concluding that the answer improved or regressed.
+The saved question reports do not include the full evaluator trace by
+default; use the integration notebook's evaluation/traceability tables
+to preserve that evidence.
 
-## Tests
+## Tests and troubleshooting
 
-Run the test suite from the repository root:
+Run the project's test suite from the repository root with the project's
+configured environment (for example, `pytest` if tests are present in
+the checkout). For the final academic evidence bundle, record the exact
+command and pass/skip/fail summary.
 
-```bash
-uv run pytest -q
-```
-
-If Ruff is available in the project's development dependencies:
-
-```bash
-uv run ruff check .
-```
-
-Unit tests can validate individual components without exercising every external service or downloading the local model. For that reason, test success and a successful end-to-end notebook run are separate checks.
+-   **No market/news/filing records:** verify ticker, API key, SEC
+    User-Agent, network access, date period, and artifact paths.
+-   **Evaluator not configured:** set `OPENAI_API_KEY` or `GROQ_API_KEY`
+    and an appropriate `EVALUATOR_MODEL` if overriding defaults.
+-   **Local model memory pressure:** use the bounded default generator
+    configuration and avoid creating a second model instance in the
+    notebook; smaller context/token limits reduce activation/cache
+    pressure but do not reduce the model's loaded-weight footprint.
+-   **No memory IDs retrieved:** the first run may have no matching
+    prior memory; rerun a related question after memory persistence and
+    inspect the retrieved IDs.
+-   **No evidence for a criterion:** report it as not observed, not as
+    successful merely because the code contains a corresponding class.
 
 ## Repository documentation
 
-- [Architecture](architecture.md)
-- [Workflow execution guide](RUN_WORKFLOW.md)
-- [Project dependencies and tooling](pyproject.toml)
-- [Locked dependencies](uv.lock)
-- [Tests](tests/)
-
-## License
-
-See [`LICENSE`](LICENSE) for the repository's license terms, if present.
+-   `README.md` --- setup, notebook sequence, rubric evidence and output
+    interpretation.
+-   `architecture.md` --- runtime components, control/data flow and
+    boundaries.
+-   `AAI520_Draft_Implementation_Evidence_Report.md` --- rubric
+    crosswalk and evidence protocol for the academic submission.
