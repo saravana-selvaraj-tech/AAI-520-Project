@@ -21,7 +21,7 @@ class NotebookResearchProvider:
         news_data: Any | None = None,
         company_name: str | None = None,
         filings: list[EvidenceRecord] | None = None,
-        max_filings: int = 8,
+        max_filings: int = 4,
         sec_user_agent: str | None = None,
     ) -> None:
         self.ticker = ticker.upper()
@@ -65,7 +65,9 @@ class NotebookResearchProvider:
         if self.news_data is None:
             return []
         records = []
-        for index, row in self.news_data.iterrows():
+        max_news_records = max(1, int(os.getenv("RESEARCH_MAX_NEWS_RECORDS", "12")))
+        max_content_chars = max(500, int(os.getenv("RESEARCH_MAX_EVIDENCE_CHARS", "8000")))
+        for index, row in self.news_data.head(max_news_records).iterrows():
             title = _value(row, "title", f"News item {index + 1}")
             content = " ".join(
                 str(_value(row, field, ""))
@@ -78,7 +80,7 @@ class NotebookResearchProvider:
                 EvidenceRecord(
                     source=str(_value(row, "source", "NewsAPI")),
                     title=title,
-                    content=content,
+                    content=content[:max_content_chars],
                     published_at=_value(row, "publishedAt"),
                     ticker=self.ticker,
                     url=_value(row, "url"),
@@ -233,22 +235,33 @@ class _TextExtractor(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.parts: list[str] = []
         self._skip_depth = 0
+        self._retained_chars = 0
+        self._max_chars = 20_000
+
+    def _append(self, value: str) -> None:
+        remaining = self._max_chars - self._retained_chars
+        if remaining <= 0:
+            return
+        fragment = value[:remaining]
+        self.parts.append(fragment)
+        self._retained_chars += len(fragment)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag.lower() in {"script", "style"}:
             self._skip_depth += 1
         elif tag.lower() in {"p", "div", "br", "tr", "td", "th", "li", "section"}:
-            self.parts.append("\n")
+            self._append("\n")
 
     def handle_endtag(self, tag: str) -> None:
         if tag.lower() in {"script", "style"} and self._skip_depth:
             self._skip_depth -= 1
         elif tag.lower() in {"p", "div", "tr", "li", "section"}:
-            self.parts.append("\n")
+            self._append("\n")
 
     def handle_data(self, data: str) -> None:
-        if not self._skip_depth:
-            self.parts.append(data)
+        if self._skip_depth or self._retained_chars >= self._max_chars:
+            return
+        self._append(data)
 
 
 def _html_to_text(document: str) -> str:

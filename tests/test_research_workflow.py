@@ -116,3 +116,19 @@ def test_model_answer_generator_preserves_router_output_contract():
     answer = generator.generate("What happened?", "Source: test\nRevenue grew.")
 
     assert answer == "Model answer"
+    assert generator.max_new_tokens == 512
+    assert generator.max_input_chars == 6000
+
+
+def test_model_answer_generator_clamps_generation_budget():
+    generator = QwenAnswerGenerator(
+        model_name="test-model",
+        tokenizer=FakeTokenizer(),
+        model=FakeModel(),
+        device="cpu",
+        max_new_tokens=5000,
+        max_input_chars=2500,
+    )
+
+    assert generator.max_new_tokens == 1024
+    assert generator.max_input_chars == 2500

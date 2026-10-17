@@ -56,6 +56,23 @@ class MemoryAwareResearchService:
         self._data_provider = data_provider
         self._answer_generator = answer_generator
 
+    def _retrieve_topics(self, query: str) -> list[str]:
+        topics = []
+        if not str:
+            return topics
+        normalized = query.casefold()
+        if any(word in normalized for word in ("price", "market", "stock", "return", "volatility")):
+            topics.append("market")
+        if any(word in normalized for word in ("news", "headline", "sentiment", "event")):
+            topics.append("news")
+        if any(word in normalized for word in ("sec", "filing", "10-k", "10-q", "regulatory")):
+            topics.append("sec")
+        if any(word in normalized for word in ("financial", "earnings", "revenue", "profit", "eps")):
+            topics.append("financial")
+        if any(word in normalized for word in ("risk", "uncertainty", "downside")):
+            topics.append("risk")
+        return topics
+
     def run(
         self,
         exchange_symbol: str,
@@ -110,10 +127,12 @@ class MemoryAwareResearchService:
         self._router_service = router_service
         self._optimization_controller.set_router_service(router_service)
 
+        retrieved_topics = self._retrieve_topics(question)
         memory_context = self.retrieve_memory(
             exchange_symbol=exchange_symbol,
             query=question,
-             topics=["financial-performance", "market", "news", "risk"],
+            #topics=retrieved_topics,
+            topics=["financial-performance", "market", "news", "risk"],
         )
 
         if memory_context.memories:
@@ -170,8 +189,8 @@ class MemoryAwareResearchService:
                     *self._extract_unresolved_gaps(trace),
                 ]
             ),
-            evaluation_results=trace.final_evaluation,
-            topics=None,
+            evaluation_results=trace.final_evaluation, topics=None
+            #topics=retrieved_topics,
         )
         self._memory_service.save(memory)
         trace.record_memory_applied(retrieved_ids)
